@@ -5,102 +5,40 @@ const https = require('https');
 const secret = 'b50fda56906e2da62889be510aad7a9d42d2b537c82363b77fcf373c5da64429';
 const publicKey = 'pc4y_pub_prod';
 
-// Test case: 8 boards totaling 38kg
+// Test case: 9 boards of 27mm thick, 900mm x 330mm
 const testData = {
-  cartId: "test-38kg",
+  cartId: "test-9x27mm",
   destination: {
     country: "GB",
     postalCode: "HP19",
     city: "Aylesbury"
   },
-  items: [
-    {
-      sku: "PINE-18",
-      name: "18mm Pine Board 1",
-      length_mm: 2080,
-      width_mm: 250,
-      thickness_mm: 18,
-      weight_kg: 5.7,
-      qty: 1
-    },
-    {
-      sku: "PINE-18",
-      name: "18mm Pine Board 2",
-      length_mm: 1800,
-      width_mm: 300,
-      thickness_mm: 18,
-      weight_kg: 5.9,
-      qty: 1
-    },
-    {
-      sku: "PINE-18",
-      name: "18mm Pine Board 3",
-      length_mm: 1600,
-      width_mm: 280,
-      thickness_mm: 18,
-      weight_kg: 4.9,
-      qty: 1
-    },
-    {
-      sku: "PINE-18",
-      name: "18mm Pine Board 4",
-      length_mm: 1500,
-      width_mm: 320,
-      thickness_mm: 18,
-      weight_kg: 5.3,
-      qty: 1
-    },
-    {
-      sku: "PINE-18",
-      name: "18mm Pine Board 5",
-      length_mm: 1400,
-      width_mm: 260,
-      thickness_mm: 18,
-      weight_kg: 4.0,
-      qty: 1
-    },
-    {
-      sku: "PINE-18",
-      name: "18mm Pine Board 6",
-      length_mm: 1300,
-      width_mm: 290,
-      thickness_mm: 18,
-      weight_kg: 4.1,
-      qty: 1
-    },
-    {
-      sku: "PINE-18",
-      name: "18mm Pine Board 7",
-      length_mm: 1200,
-      width_mm: 310,
-      thickness_mm: 18,
-      weight_kg: 4.1,
-      qty: 1
-    },
-    {
-      sku: "PINE-18",
-      name: "18mm Pine Board 8",
-      length_mm: 1100,
-      width_mm: 270,
-      thickness_mm: 18,
-      weight_kg: 3.3,
-      qty: 1
-    }
-  ],
-  preferences: {
-    speed: "cheapest",
-    allowSplit: true
-  }
+  items: []
 };
+
+// Generate 9 identical boards
+// Pine density 600 kg/m³, so 0.9m x 0.33m x 0.027m = 4.81kg per board
+for (let i = 1; i <= 9; i++) {
+  testData.items.push({
+    sku: "PINE-27",
+    name: `27mm Pine Board ${i}`,
+    length_mm: 900,
+    width_mm: 330,
+    thickness_mm: 27,
+    weight_kg: 4.81, // 600 kg/m³ density
+    qty: 1
+  });
+}
 
 // Calculate total weight
 const totalWeight = testData.items.reduce((sum, item) => sum + item.weight_kg * (item.qty || 1), 0);
 console.log('Total weight of all boards:', totalWeight.toFixed(1) + 'kg');
 console.log('Number of boards:', testData.items.length);
+console.log('Board dimensions: 900mm x 330mm x 27mm');
 console.log('\nExpected behavior:');
-console.log('- Should split into 2 packages (38kg > 30kg max)');
-console.log('- Should balance weights (e.g., ~19kg each, not 30kg + 8kg)');
-console.log('- Each package priced based on its girth (Standard ≤300cm, Oversized >300cm)\n');
+console.log('- Total weight: 43.3kg (exceeds 30kg max)');
+console.log('- Should split into 2 packages (~21-22kg each)');
+console.log('- Girth per package: 900 + 2*(330 + height) = depends on stacking\n');
 
 const body = JSON.stringify(testData);
 const timestamp = Date.now().toString();
@@ -122,7 +60,7 @@ const options = {
   }
 };
 
-console.log('Testing MCP API with 38kg scenario...\n');
+console.log('Testing MCP API with 9x27mm scenario...\n');
 
 const req = https.request(options, (res) => {
   let data = '';
@@ -144,10 +82,12 @@ const req = https.request(options, (res) => {
         response.packages.forEach((pkg, i) => {
           const girthCm = pkg.girth_mm / 10;
           console.log(`\nPackage ${i + 1}:`);
+          console.log(`  Dimensions: ${pkg.length_mm}mm x ${pkg.width_mm}mm x ${pkg.height_mm}mm`);
           console.log(`  Weight: ${pkg.weight_kg}kg`);
           console.log(`  Girth: ${girthCm}cm`);
           console.log(`  Service: ${pkg.service}`);
           console.log(`  Price: £${response.breakdown[i].price}`);
+          console.log(`  Items: ${pkg.items.join(', ')}`);
         });
         
         // Check weight distribution
@@ -160,9 +100,8 @@ const req = https.request(options, (res) => {
         console.log(`Packages: ${weights.map(w => w + 'kg').join(', ')}`);
         console.log(`Variance: ${variance.toFixed(1)}kg`);
         
-        if (variance > 15) {
+        if (variance > 10) {
           console.log('⚠️  WARNING: Unbalanced weight distribution!');
-          console.log('   Should aim for more even distribution.');
         } else {
           console.log('✅ Good weight balance!');
         }

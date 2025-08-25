@@ -2,7 +2,7 @@ const crypto = require('crypto');
 
 const SECRET = process.env.PC4Y_SECRET || 'b50fda56906e2da62889be510aad7a9d42d2b537c82363b77fcf373c5da64429';
 const MAX_WEIGHT = 30;
-const PADDING = 20;
+const PADDING = 30;
 const GIRTH_THRESHOLD = 3000;
 
 const PRICING = [
