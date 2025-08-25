@@ -24,6 +24,8 @@ app.get('/health', (_req, res) => {
     ok: true,
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || 'development',
+    version: '1.1.0',
+    updated: '2025-01-25',
   });
 });
 
