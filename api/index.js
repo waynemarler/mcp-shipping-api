@@ -106,7 +106,7 @@ function packItems(items) {
 app.use(express.json());
 
 // Routes
-app.get('/api', (req, res) => {
+app.get('/', (req, res) => {
   res.json({
     service: 'PineCut4You MCP Shipping API',
     version: '2.0.0-vercel',
@@ -115,7 +115,7 @@ app.get('/api', (req, res) => {
   });
 });
 
-app.get('/api/health', (req, res) => {
+app.get('/health', (req, res) => {
   res.json({ 
     ok: true,
     timestamp: new Date().toISOString(),
@@ -125,7 +125,7 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-app.post('/api/instant-quote', (req, res) => {
+app.post('/instant-quote', (req, res) => {
   const ts = req.header("X-PC4Y-Timestamp") || "";
   const sig = req.header("X-PC4Y-Signature") || "";
   
