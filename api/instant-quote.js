@@ -122,11 +122,43 @@ module.exports = (req, res) => {
     const total = parcels.reduce((sum, p) => sum + p.price, 0);
     const breakdown = parcels.map(p => ({ service: p.service, price: p.price }));
 
+    // Create detailed package descriptions
+    const detailedPackages = parcels.map((p, index) => {
+      const itemDetails = req.body.items.filter(item => {
+        const itemName = item.name;
+        return p.items.some(pItem => pItem === itemName);
+      });
+
+      const itemList = [];
+      p.items.forEach(itemName => {
+        const matchedItem = req.body.items.find(item => item.name === itemName);
+        if (matchedItem) {
+          const weight = Math.round(matchedItem.weight_kg * 10) / 10; // Round to 1 decimal
+          itemList.push(`${matchedItem.thickness_mm}mm Pine Cut To Size (${matchedItem.length_mm} x ${matchedItem.width_mm} x ${matchedItem.thickness_mm}) - ${weight} kg`);
+        }
+      });
+
+      const totalWeight = Math.round(p.weight_kg);
+      const lengthCm = Math.round(p.length_mm / 10);
+      const widthCm = Math.round(p.width_mm / 10);  
+      const heightCm = Math.round(p.height_mm / 10);
+
+      return {
+        packageNumber: index + 1,
+        items: itemList,
+        totalWeight: `${totalWeight} kg`,
+        dimensions: `${lengthCm} x ${widthCm} x ${heightCm} cm`,
+        service: p.service,
+        price: p.price
+      };
+    });
+
     res.json({
       status: "done",
       total,
       currency: "GBP",
       packages: parcels,
+      detailedPackages,
       breakdown,
       copy: "We've checked the best and cheapest option for your order."
     });
