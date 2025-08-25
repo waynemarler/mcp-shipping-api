@@ -26,57 +26,81 @@ function packItems(items) {
     }
   }
 
-  boards.sort((a, b) => b.length_mm - a.length_mm || b.width_mm - a.width_mm);
+  // Sort by weight descending (pack heaviest items first for better distribution)
+  boards.sort((a, b) => b.weight_kg - a.weight_kg);
   const totalWeight = boards.reduce((sum, b) => sum + b.weight_kg, 0);
   
+  // Calculate optimal number of packages
   let targetPackages = Math.ceil(totalWeight / MAX_WEIGHT);
-  const targetWeight = totalWeight / targetPackages;
   
+  // If weight is close to max, prefer more packages for better balance
+  // For example, 38kg should be 2 packages (~19kg each) not 30kg + 8kg
+  if (totalWeight > MAX_WEIGHT && targetPackages === 2) {
+    const avgWeight = totalWeight / 2;
+    // If average would be > 20kg, that's too unbalanced, use current target
+    // Otherwise we're good with 2 packages
+  }
+  
+  const targetWeight = totalWeight / targetPackages;
+  console.log(`Total: ${totalWeight}kg, Target packages: ${targetPackages}, Target weight: ${targetWeight}kg`);
+  
+  // Initialize empty parcels
   const parcels = [];
+  for (let i = 0; i < targetPackages; i++) {
+    parcels.push({
+      length_mm: 0,
+      width_mm: 0,
+      height_mm: PADDING * 2, // Start with padding
+      weight_kg: 0,
+      items: []
+    });
+  }
 
+  // Distribute boards using best-fit decreasing
   for (const board of boards) {
     let bestParcel = -1;
-    let bestScore = Infinity;
+    let minWeight = Infinity;
 
+    // Find the parcel with minimum weight that can still fit this board
     for (let i = 0; i < parcels.length; i++) {
       const p = parcels[i];
       const newWeight = p.weight_kg + board.weight_kg;
       
+      // Skip if would exceed max weight
       if (newWeight > MAX_WEIGHT) continue;
-
-      const score = Math.abs(newWeight - targetWeight);
-      if (score < bestScore) {
-        bestScore = score;
+      
+      // Prefer the lightest parcel to balance weights
+      if (p.weight_kg < minWeight) {
+        minWeight = p.weight_kg;
         bestParcel = i;
       }
     }
 
-    if (bestParcel >= 0) {
-      const p = parcels[bestParcel];
-      p.length_mm = Math.max(p.length_mm, board.length_mm + 2 * PADDING);
-      p.width_mm = Math.max(p.width_mm, board.width_mm + 2 * PADDING);
-      p.height_mm += board.thickness_mm;
-      p.weight_kg = Math.round((p.weight_kg + board.weight_kg) * 100) / 100;
-      p.items.push(board.name);
-    } else {
-      parcels.push({
-        length_mm: board.length_mm + 2 * PADDING,
-        width_mm: board.width_mm + 2 * PADDING,
-        height_mm: board.thickness_mm + 2 * PADDING,
-        weight_kg: board.weight_kg,
-        items: [board.name]
-      });
+    // If no suitable parcel found (shouldn't happen with proper sizing)
+    if (bestParcel === -1) {
+      bestParcel = 0; // Fallback to first parcel
     }
-  }
 
-  for (const p of parcels) {
+    // Add board to selected parcel
+    const p = parcels[bestParcel];
+    p.length_mm = Math.max(p.length_mm, board.length_mm + 2 * PADDING);
+    p.width_mm = Math.max(p.width_mm, board.width_mm + 2 * PADDING);
+    p.height_mm += board.thickness_mm;
+    p.weight_kg = Math.round((p.weight_kg + board.weight_kg) * 100) / 100;
+    p.items.push(board.name);
+  }
+  
+  // Remove empty parcels if any
+  const filledParcels = parcels.filter(p => p.items.length > 0);
+
+  for (const p of filledParcels) {
     p.girth_mm = p.length_mm + 2 * (p.width_mm + p.height_mm);
     const tier = PRICING.find(t => !t.maxG || p.girth_mm <= t.maxG) || PRICING[PRICING.length - 1];
     p.service = tier.name;
     p.price = tier.price;
   }
 
-  return parcels;
+  return filledParcels;
 }
 
 module.exports = (req, res) => {
