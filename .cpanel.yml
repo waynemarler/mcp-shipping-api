@@ -1,9 +1,7 @@
 ---
 deployment:
   tasks:
-    # Copy from repository to Node.js app directory
-    - export DEPLOYPATH=/home/pinecut4youco/mcp-shipping
-    - /bin/cp -R * $DEPLOYPATH
-    - /bin/cp .cpanel.yml $DEPLOYPATH 2>/dev/null || true
-    - /bin/cp .gitignore $DEPLOYPATH 2>/dev/null || true
-    - /bin/cp .env.example $DEPLOYPATH 2>/dev/null || true
+    # Work directly in the repository directory
+    - cd /home/pinecut4youco/repositories/mcp-shipping
+    - /usr/local/bin/npm install --production
+    - /usr/local/bin/npx tsc
