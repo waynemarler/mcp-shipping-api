@@ -1,0 +1,32 @@
+{
+  "cartId": "test123",
+  "destination": {
+    "country": "GB",
+    "postalCode": "HP19",
+    "city": "Aylesbury"
+  },
+  "items": [
+    {
+      "sku": "PINE-18",
+      "name": "18mm Pine",
+      "length_mm": 2080,
+      "width_mm": 230,
+      "thickness_mm": 18,
+      "weight_kg": 5.2,
+      "qty": 1
+    },
+    {
+      "sku": "PINE-18",
+      "name": "18mm Pine",
+      "length_mm": 1250,
+      "width_mm": 300,
+      "thickness_mm": 18,
+      "weight_kg": 4.1,
+      "qty": 6
+    }
+  ],
+  "preferences": {
+    "speed": "cheapest",
+    "allowSplit": true
+  }
+}

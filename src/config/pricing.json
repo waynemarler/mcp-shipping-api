@@ -1,0 +1,29 @@
+{
+  "ladder": [
+    {
+      "name": "Standard",
+      "maxL": 2000,
+      "maxG": 3000,
+      "maxWkg": 30,
+      "price": 25
+    },
+    {
+      "name": "Oversize-1",
+      "maxL": 2400,
+      "maxG": 3600,
+      "maxWkg": 40,
+      "price": 55
+    },
+    {
+      "name": "Oversize-2",
+      "maxL": 2600,
+      "maxG": 4200,
+      "maxWkg": 50,
+      "price": 85
+    },
+    {
+      "name": "Pallet/XL",
+      "price": 110
+    }
+  ]
+}

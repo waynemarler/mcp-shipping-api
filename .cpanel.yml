@@ -1,0 +1,20 @@
+---
+deployment:
+  tasks:
+    # Set the deployment directory
+    - export DEPLOYPATH=/home/pinecut4youco/mcp-shipping
+    
+    # Copy all files to deployment directory
+    - /bin/cp -R . $DEPLOYPATH
+    
+    # Change to deployment directory
+    - cd $DEPLOYPATH
+    
+    # Install all dependencies including TypeScript
+    - /usr/local/bin/npm install --production
+    
+    # Build TypeScript to JavaScript
+    - /usr/local/bin/npx tsc
+    
+    # Write deployment timestamp
+    - echo "Deployed at $(date)" > deploy.log
