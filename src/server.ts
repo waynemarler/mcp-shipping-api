@@ -30,7 +30,8 @@ app.get('/health', (_req, res) => {
 app.get('/', (_req, res) => {
   res.json({
     service: 'PineCut4You MCP Shipping API',
-    version: '1.0.0',
+    version: '1.1.0',
+    features: 'Smart weight distribution',
     endpoints: [
       'GET /health',
       'POST /instant-quote',
