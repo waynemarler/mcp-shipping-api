@@ -1,7 +1,6 @@
 ---
 deployment:
   tasks:
-    # Work directly in the repository directory
-    - cd /home/pinecut4youco/repositories/mcp-shipping
-    - /usr/local/bin/npm install --production
-    - /usr/local/bin/npx tsc
+    # Just copy files, no build commands
+    - /bin/cp -R /home/pinecut4youco/repositories/mcp-shipping/* /home/pinecut4youco/mcp-shipping/
+    - /bin/cp /home/pinecut4youco/repositories/mcp-shipping/.* /home/pinecut4youco/mcp-shipping/ 2>/dev/null || true
