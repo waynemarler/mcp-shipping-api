@@ -1,20 +1,9 @@
 ---
 deployment:
   tasks:
-    # Set the deployment directory
+    # Copy from repository to Node.js app directory
     - export DEPLOYPATH=/home/pinecut4youco/mcp-shipping
-    
-    # Copy all files to deployment directory
-    - /bin/cp -R . $DEPLOYPATH
-    
-    # Change to deployment directory
-    - cd $DEPLOYPATH
-    
-    # Install all dependencies including TypeScript
-    - /usr/local/bin/npm install --production
-    
-    # Build TypeScript to JavaScript
-    - /usr/local/bin/npx tsc
-    
-    # Write deployment timestamp
-    - echo "Deployed at $(date)" > deploy.log
+    - /bin/cp -R * $DEPLOYPATH
+    - /bin/cp .cpanel.yml $DEPLOYPATH 2>/dev/null || true
+    - /bin/cp .gitignore $DEPLOYPATH 2>/dev/null || true
+    - /bin/cp .env.example $DEPLOYPATH 2>/dev/null || true
