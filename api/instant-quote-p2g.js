@@ -140,14 +140,19 @@ module.exports = async (req, res) => {
           if (quoteResult && quotes) {
             // Check if we have valid quotes
             if (Array.isArray(quotes) && quotes.length > 0) {
-              // Find cheapest quote
-              const cheapest = quotes.reduce((min, q) => 
+              // Filter out drop-off services - only keep collection services
+              const collectionOnly = quotes.filter(q => 
+                q.Service?.CollectionType === 'Collection'
+              );
+              
+              // Find cheapest collection quote
+              const cheapest = collectionOnly.reduce((min, q) => 
                 (!min || q.TotalPrice < min.TotalPrice) ? q : min, null);
               
               if (cheapest) {
                 p.service = cheapest.Service?.Name || 'P2G Service';
                 p.price = Math.ceil(cheapest.TotalPrice);
-                p.p2g_quotes = quotes.slice(0, 3); // Keep top 3 options
+                p.p2g_quotes = collectionOnly.slice(0, 5); // Keep top 5 collection options
               }
             } else if (quoteResult.error) {
               console.error('P2G quote error for package:', quoteResult.error);
@@ -200,7 +205,8 @@ module.exports = async (req, res) => {
       // Include P2G quote options if available
       if (p.p2g_quotes) {
         details.alternativeServices = p.p2g_quotes.map(q => ({
-          service: q.ServiceName,
+          service: q.Service?.Name || q.ServiceName,
+          courier: q.Service?.CourierName,
           price: Math.ceil(q.TotalPrice),
           deliveryDays: q.EstimatedDeliveryDays
         }));
