@@ -145,22 +145,41 @@ module.exports = async (req, res) => {
           // Use collection services if available, otherwise fall back to all quotes
           const quotesToUse = collectionOnly.length > 0 ? collectionOnly : quotes;
           
-          // Check if UPS Standard is available
-          const upsStandard = quotesToUse.find(q => 
-            q.Service?.CourierSlug === 'ups' && 
-            q.Service?.Slug === 'ups-dap-uk-standard'
-          );
+          // Check maximum girth across all packages
+          const maxGirth = Math.max(...parcels.map(p => p.girth_mm / 10)); // Convert to cm
+          console.log(`Max package girth: ${maxGirth}cm`);
           
-          // Use UPS Standard if available, otherwise find cheapest
           let selectedQuote;
-          if (upsStandard) {
-            selectedQuote = upsStandard;
-            console.log('Found preferred UPS Standard service');
+          
+          if (maxGirth <= 300) {
+            // For packages ≤300cm girth, prefer UPS Standard
+            const upsStandard = quotesToUse.find(q => 
+              q.Service?.CourierSlug === 'ups' && 
+              q.Service?.Slug === 'ups-dap-uk-standard'
+            );
+            
+            if (upsStandard) {
+              selectedQuote = upsStandard;
+              console.log('Selected UPS Standard (preferred for girth ≤300cm)');
+            }
           } else {
-            // Find cheapest quote that covers all packages
+            // For packages >300cm girth, prefer DHL Express
+            const dhlExpress = quotesToUse.find(q => 
+              q.Service?.CourierSlug === 'dhl' || 
+              q.Service?.CourierName === 'DHL'
+            );
+            
+            if (dhlExpress) {
+              selectedQuote = dhlExpress;
+              console.log('Selected DHL Express (preferred for girth >300cm)');
+            }
+          }
+          
+          // If preferred courier not found, use cheapest option
+          if (!selectedQuote) {
             selectedQuote = quotesToUse.reduce((min, q) => 
               (!min || q.TotalPrice < min.TotalPrice) ? q : min, null);
-            console.log('UPS Standard not available, using cheapest option');
+            console.log('Preferred courier not available, using cheapest option');
           }
           
           const cheapest = selectedQuote;
