@@ -135,27 +135,32 @@ module.exports = async (req, res) => {
           const p = parcels[i];
           const quoteResult = p2gQuotes[i];
           
-          // P2G returns capital Q "Quotes" not lowercase "quotes"
-          const quotes = quoteResult.quotes || quoteResult.Quotes;
-          if (quoteResult && quotes) {
-            // Check if we have valid quotes
-            if (Array.isArray(quotes) && quotes.length > 0) {
-              // Find cheapest quote (no filtering for now)
-              const cheapest = quotes.reduce((min, q) => 
-                (!min || q.TotalPrice < min.TotalPrice) ? q : min, null);
-              
-              if (cheapest) {
-                p.service = cheapest.Service?.Name || 'P2G Service';
-                p.price = Math.ceil(cheapest.TotalPrice);
-                p.p2g_quotes = quotes.slice(0, 5); // Keep top 5 options
-              }
-            } else if (quoteResult.error) {
-              console.error('P2G quote error for package:', quoteResult.error);
-              // Fall back to static pricing for this package
-              const tier = STATIC_PRICING.find(t => !t.maxG || p.girth_mm <= t.maxG) || STATIC_PRICING[STATIC_PRICING.length - 1];
-              p.service = tier.name;
-              p.price = tier.price;
+          console.log(`Processing package ${i + 1} quotes:`, JSON.stringify(quoteResult, null, 2));
+          
+          // P2G returns the quotes directly in the response
+          const quotes = quoteResult.Quotes || quoteResult.quotes;
+          if (quotes && Array.isArray(quotes) && quotes.length > 0) {
+            // Find cheapest quote
+            const cheapest = quotes.reduce((min, q) => 
+              (!min || q.TotalPrice < min.TotalPrice) ? q : min, null);
+            
+            if (cheapest) {
+              p.service = cheapest.Service?.Name || 'P2G Service';
+              p.price = Math.ceil(cheapest.TotalPrice);
+              p.p2g_quotes = quotes.slice(0, 5); // Keep top 5 options
+              console.log(`Package ${i + 1}: ${p.service} - £${p.price}`);
             }
+          } else if (quoteResult.error) {
+            console.error('P2G quote error for package:', quoteResult.error);
+            // Fall back to static pricing for this package
+            const tier = STATIC_PRICING.find(t => !t.maxG || p.girth_mm <= t.maxG) || STATIC_PRICING[STATIC_PRICING.length - 1];
+            p.service = tier.name;
+            p.price = tier.price;
+          } else {
+            console.log('No quotes found for package', i + 1, '- falling back to static pricing');
+            const tier = STATIC_PRICING.find(t => !t.maxG || p.girth_mm <= t.maxG) || STATIC_PRICING[STATIC_PRICING.length - 1];
+            p.service = tier.name;
+            p.price = tier.price;
           }
         }
       } catch (error) {
