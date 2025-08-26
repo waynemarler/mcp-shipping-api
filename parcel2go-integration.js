@@ -82,42 +82,36 @@ async function getAccessToken() {
 async function getShippingQuotes(packages, destination) {
   const token = await getAccessToken();
   
-  const quotes = [];
-  
-  for (const pkg of packages) {
-    const quoteData = {
-      CollectionAddress: {
-        Address1: "Unit 1",
-        Address2: "Pine Workshop",
-        Town: "High Wycombe",
-        County: "Buckinghamshire",
-        Postcode: "HP12 3RL",
-        Country: "GBR"
-      },
-      DeliveryAddress: {
-        Town: destination.city || "London",
-        Postcode: destination.postalCode || "SW1A 1AA",
-        Country: "GBR"
-      },
-      Parcels: [{
-        Weight: Math.ceil(pkg.weight_kg), // Round up to nearest kg
-        Length: Math.ceil(pkg.length_mm / 10), // Convert to cm and round up
-        Width: Math.ceil(pkg.width_mm / 10),
-        Height: Math.ceil(pkg.height_mm / 10),
-        Value: 100 // Default insurance value
-      }]
-    };
+  // Send all packages in a single API call
+  const quoteData = {
+    CollectionAddress: {
+      Address1: "Unit 1",
+      Address2: "Pine Workshop",
+      Town: "High Wycombe",
+      County: "Buckinghamshire",
+      Postcode: "HP12 3RL",
+      Country: "GBR"
+    },
+    DeliveryAddress: {
+      Town: destination.city || "London",
+      Postcode: destination.postalCode || "SW1A 1AA",
+      Country: "GBR"
+    },
+    Parcels: packages.map(pkg => ({
+      Weight: Math.ceil(pkg.weight_kg), // Round up to nearest kg
+      Length: Math.ceil(pkg.length_mm / 10), // Convert to cm and round up
+      Width: Math.ceil(pkg.width_mm / 10),
+      Height: Math.ceil(pkg.height_mm / 10),
+      Value: 100 // Default insurance value
+    }))
+  };
 
-    console.log('Sending to P2G API:', JSON.stringify(quoteData, null, 2));
-    const quote = await fetchQuote(token, quoteData);
-    console.log('P2G API Response:', JSON.stringify(quote, null, 2));
-    quotes.push({
-      package: pkg,
-      quotes: quote
-    });
-  }
+  console.log('Sending to P2G API:', JSON.stringify(quoteData, null, 2));
+  const quote = await fetchQuote(token, quoteData);
+  console.log('P2G API Response:', JSON.stringify(quote, null, 2));
   
-  return quotes;
+  // P2G returns quotes for all packages together, so we need to return them
+  return quote;
 }
 
 // Fetch quote from API

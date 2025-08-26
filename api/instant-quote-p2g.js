@@ -130,34 +130,44 @@ module.exports = async (req, res) => {
         p2gQuotes = await getShippingQuotes(parcels, destination);
         console.log('P2G Response:', JSON.stringify(p2gQuotes, null, 2));
         
-        // Process P2G quotes to find best options
-        for (let i = 0; i < parcels.length; i++) {
-          const p = parcels[i];
-          const quoteResult = p2gQuotes[i];
+        // Process P2G quotes - now a single response for all packages
+        const quotes = p2gQuotes.Quotes || p2gQuotes.quotes;
+        if (quotes && Array.isArray(quotes) && quotes.length > 0) {
+          console.log(`P2G returned ${quotes.length} quotes for ${parcels.length} packages`);
           
-          console.log(`Processing package ${i + 1} quotes:`, JSON.stringify(quoteResult, null, 2));
+          // Find cheapest quote that covers all packages
+          const cheapest = quotes.reduce((min, q) => 
+            (!min || q.TotalPrice < min.TotalPrice) ? q : min, null);
           
-          // P2G returns the quotes directly in the response
-          const quotes = quoteResult.Quotes || quoteResult.quotes;
-          if (quotes && Array.isArray(quotes) && quotes.length > 0) {
-            // Find cheapest quote
-            const cheapest = quotes.reduce((min, q) => 
-              (!min || q.TotalPrice < min.TotalPrice) ? q : min, null);
+          if (cheapest) {
+            console.log(`Best quote: ${cheapest.Service?.Name} - £${cheapest.TotalPrice}`);
             
-            if (cheapest) {
+            // Calculate price per package (split total cost)
+            const pricePerPackage = Math.ceil(cheapest.TotalPrice / parcels.length);
+            
+            // Apply same service and split price to all packages
+            for (let i = 0; i < parcels.length; i++) {
+              const p = parcels[i];
               p.service = cheapest.Service?.Name || 'P2G Service';
-              p.price = Math.ceil(cheapest.TotalPrice);
+              p.price = pricePerPackage;
               p.p2g_quotes = quotes.slice(0, 5); // Keep top 5 options
               console.log(`Package ${i + 1}: ${p.service} - £${p.price}`);
             }
-          } else if (quoteResult.error) {
-            console.error('P2G quote error for package:', quoteResult.error);
-            // Fall back to static pricing for this package
+          }
+        } else if (p2gQuotes.error) {
+          console.error('P2G quote error:', p2gQuotes.error);
+          // Fall back to static pricing for all packages
+          for (let i = 0; i < parcels.length; i++) {
+            const p = parcels[i];
             const tier = STATIC_PRICING.find(t => !t.maxG || p.girth_mm <= t.maxG) || STATIC_PRICING[STATIC_PRICING.length - 1];
             p.service = tier.name;
             p.price = tier.price;
-          } else {
-            console.log('No quotes found for package', i + 1, '- falling back to static pricing');
+          }
+        } else {
+          console.log('No quotes found - falling back to static pricing');
+          // Fall back to static pricing for all packages  
+          for (let i = 0; i < parcels.length; i++) {
+            const p = parcels[i];
             const tier = STATIC_PRICING.find(t => !t.maxG || p.girth_mm <= t.maxG) || STATIC_PRICING[STATIC_PRICING.length - 1];
             p.service = tier.name;
             p.price = tier.price;
