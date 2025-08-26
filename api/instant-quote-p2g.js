@@ -135,12 +135,22 @@ module.exports = async (req, res) => {
         if (quotes && Array.isArray(quotes) && quotes.length > 0) {
           console.log(`P2G returned ${quotes.length} quotes for ${parcels.length} packages`);
           
+          // Filter to only keep collection services
+          const collectionOnly = quotes.filter(q => 
+            q.Service?.CollectionType === 'Collection'
+          );
+          
+          console.log(`Found ${collectionOnly.length} collection services out of ${quotes.length} total`);
+          
+          // Use collection services if available, otherwise fall back to all quotes
+          const quotesToUse = collectionOnly.length > 0 ? collectionOnly : quotes;
+          
           // Find cheapest quote that covers all packages
-          const cheapest = quotes.reduce((min, q) => 
+          const cheapest = quotesToUse.reduce((min, q) => 
             (!min || q.TotalPrice < min.TotalPrice) ? q : min, null);
           
           if (cheapest) {
-            console.log(`Best quote: ${cheapest.Service?.Name} - £${cheapest.TotalPrice}`);
+            console.log(`Best quote: ${cheapest.Service?.Name} - £${cheapest.TotalPrice} (${cheapest.Service?.CollectionType})`);
             
             // Calculate price per package (split total cost)
             const pricePerPackage = Math.ceil(cheapest.TotalPrice / parcels.length);
@@ -150,7 +160,7 @@ module.exports = async (req, res) => {
               const p = parcels[i];
               p.service = cheapest.Service?.Name || 'P2G Service';
               p.price = pricePerPackage;
-              p.p2g_quotes = quotes.slice(0, 5); // Keep top 5 options
+              p.p2g_quotes = quotesToUse.slice(0, 5); // Keep top 5 collection options
               console.log(`Package ${i + 1}: ${p.service} - £${p.price}`);
             }
           }
