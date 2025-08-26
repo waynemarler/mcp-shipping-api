@@ -135,17 +135,19 @@ module.exports = async (req, res) => {
           const p = parcels[i];
           const quoteResult = p2gQuotes[i];
           
-          if (quoteResult && quoteResult.quotes) {
+          // P2G returns capital Q "Quotes" not lowercase "quotes"
+          const quotes = quoteResult.quotes || quoteResult.Quotes;
+          if (quoteResult && quotes) {
             // Check if we have valid quotes
-            if (Array.isArray(quoteResult.quotes) && quoteResult.quotes.length > 0) {
+            if (Array.isArray(quotes) && quotes.length > 0) {
               // Find cheapest quote
-              const cheapest = quoteResult.quotes.reduce((min, q) => 
+              const cheapest = quotes.reduce((min, q) => 
                 (!min || q.TotalPrice < min.TotalPrice) ? q : min, null);
               
               if (cheapest) {
-                p.service = cheapest.ServiceName || 'P2G Service';
+                p.service = cheapest.Service?.Name || 'P2G Service';
                 p.price = Math.ceil(cheapest.TotalPrice);
-                p.p2g_quotes = quoteResult.quotes.slice(0, 3); // Keep top 3 options
+                p.p2g_quotes = quotes.slice(0, 3); // Keep top 3 options
               }
             } else if (quoteResult.error) {
               console.error('P2G quote error for package:', quoteResult.error);
