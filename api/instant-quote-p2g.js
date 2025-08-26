@@ -140,30 +140,14 @@ module.exports = async (req, res) => {
           if (quoteResult && quotes) {
             // Check if we have valid quotes
             if (Array.isArray(quotes) && quotes.length > 0) {
-              // Debug: log all services to see what P2G is returning
-              console.log('P2G Services returned:');
-              quotes.forEach((q, idx) => {
-                console.log(`${idx + 1}: ${q.Service?.Name} - ${q.Service?.CourierName} - CollectionType: ${q.Service?.CollectionType} - £${q.TotalPrice}`);
-              });
-              
-              // Filter out drop-off services - only keep collection services
-              const collectionOnly = quotes.filter(q => 
-                q.Service?.CollectionType === 'Collection'
-              );
-              
-              console.log(`Found ${collectionOnly.length} collection services out of ${quotes.length} total`);
-              
-              // If no collection services, try without filtering temporarily
-              const servicesToUse = collectionOnly.length > 0 ? collectionOnly : quotes;
-              
-              // Find cheapest service
-              const cheapest = servicesToUse.reduce((min, q) => 
+              // Find cheapest quote (no filtering for now)
+              const cheapest = quotes.reduce((min, q) => 
                 (!min || q.TotalPrice < min.TotalPrice) ? q : min, null);
               
               if (cheapest) {
                 p.service = cheapest.Service?.Name || 'P2G Service';
                 p.price = Math.ceil(cheapest.TotalPrice);
-                p.p2g_quotes = servicesToUse.slice(0, 5); // Keep top 5 options
+                p.p2g_quotes = quotes.slice(0, 5); // Keep top 5 options
               }
             } else if (quoteResult.error) {
               console.error('P2G quote error for package:', quoteResult.error);
