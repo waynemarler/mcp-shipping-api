@@ -77,6 +77,19 @@ const req = https.request(options, (res) => {
       console.log('\nResponse:');
       console.log(JSON.stringify(response, null, 2));
       
+      if (response.detailedPackages) {
+        console.log('\n=== DETAILED PACKAGE FORMAT ===');
+        response.detailedPackages.forEach((pkg) => {
+          console.log(`\nPackage ${pkg.packageNumber}:`);
+          console.log('');
+          pkg.items.forEach(item => console.log(item));
+          console.log(`Total Weight: ${pkg.totalWeight}`);
+          console.log('');
+          console.log(`Adjusted Dimensions (L x W x H): ${pkg.dimensions}`);
+          console.log(`Service: ${pkg.service} - £${pkg.price}`);
+        });
+      }
+      
       if (response.packages) {
         console.log('\n=== PACKAGE ANALYSIS ===');
         response.packages.forEach((pkg, i) => {
