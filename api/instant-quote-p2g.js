@@ -145,9 +145,25 @@ module.exports = async (req, res) => {
           // Use collection services if available, otherwise fall back to all quotes
           const quotesToUse = collectionOnly.length > 0 ? collectionOnly : quotes;
           
-          // Find cheapest quote that covers all packages
-          const cheapest = quotesToUse.reduce((min, q) => 
-            (!min || q.TotalPrice < min.TotalPrice) ? q : min, null);
+          // Check if UPS Standard is available
+          const upsStandard = quotesToUse.find(q => 
+            q.Service?.CourierSlug === 'ups' && 
+            q.Service?.Slug === 'ups-dap-uk-standard'
+          );
+          
+          // Use UPS Standard if available, otherwise find cheapest
+          let selectedQuote;
+          if (upsStandard) {
+            selectedQuote = upsStandard;
+            console.log('Found preferred UPS Standard service');
+          } else {
+            // Find cheapest quote that covers all packages
+            selectedQuote = quotesToUse.reduce((min, q) => 
+              (!min || q.TotalPrice < min.TotalPrice) ? q : min, null);
+            console.log('UPS Standard not available, using cheapest option');
+          }
+          
+          const cheapest = selectedQuote;
           
           if (cheapest) {
             console.log(`Best quote: ${cheapest.Service?.Name} - £${cheapest.TotalPrice} (${cheapest.Service?.CollectionType})`);
