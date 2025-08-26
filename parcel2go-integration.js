@@ -17,7 +17,7 @@ const P2G_CONFIG = {
   }
 };
 
-const environment = process.env.P2G_ENVIRONMENT || 'sandbox';
+const environment = (process.env.P2G_ENVIRONMENT || 'sandbox').toLowerCase();
 const config = P2G_CONFIG[environment];
 
 let accessToken = null;
