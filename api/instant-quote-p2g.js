@@ -128,21 +128,31 @@ module.exports = async (req, res) => {
       try {
         console.log('Fetching Parcel2Go quotes...');
         p2gQuotes = await getShippingQuotes(parcels, destination);
+        console.log('P2G Response:', JSON.stringify(p2gQuotes, null, 2));
         
         // Process P2G quotes to find best options
         for (let i = 0; i < parcels.length; i++) {
           const p = parcels[i];
           const quoteResult = p2gQuotes[i];
           
-          if (quoteResult && quoteResult.quotes && Array.isArray(quoteResult.quotes)) {
-            // Find cheapest quote
-            const cheapest = quoteResult.quotes.reduce((min, q) => 
-              (!min || q.TotalPrice < min.TotalPrice) ? q : min, null);
-            
-            if (cheapest) {
-              p.service = cheapest.ServiceName || 'P2G Service';
-              p.price = Math.ceil(cheapest.TotalPrice);
-              p.p2g_quotes = quoteResult.quotes.slice(0, 3); // Keep top 3 options
+          if (quoteResult && quoteResult.quotes) {
+            // Check if we have valid quotes
+            if (Array.isArray(quoteResult.quotes) && quoteResult.quotes.length > 0) {
+              // Find cheapest quote
+              const cheapest = quoteResult.quotes.reduce((min, q) => 
+                (!min || q.TotalPrice < min.TotalPrice) ? q : min, null);
+              
+              if (cheapest) {
+                p.service = cheapest.ServiceName || 'P2G Service';
+                p.price = Math.ceil(cheapest.TotalPrice);
+                p.p2g_quotes = quoteResult.quotes.slice(0, 3); // Keep top 3 options
+              }
+            } else if (quoteResult.error) {
+              console.error('P2G quote error for package:', quoteResult.error);
+              // Fall back to static pricing for this package
+              const tier = STATIC_PRICING.find(t => !t.maxG || p.girth_mm <= t.maxG) || STATIC_PRICING[STATIC_PRICING.length - 1];
+              p.service = tier.name;
+              p.price = tier.price;
             }
           }
         }
