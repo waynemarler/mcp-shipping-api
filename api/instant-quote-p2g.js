@@ -8,7 +8,7 @@ const PADDING = 30;
 // Fallback static pricing if P2G fails
 const STATIC_PRICING = [
   { name: "Standard", maxG: 3000, price: 25 },
-  { name: "Oversized", maxG: 5000, price: 55 },
+  { name: "DHL Express Large", maxG: 5000, price: 70 },  // For packages >300cm girth when P2G fails
   { name: "Pallet/XL", price: 110 }
 ];
 
