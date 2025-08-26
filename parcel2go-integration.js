@@ -92,12 +92,12 @@ async function getShippingQuotes(packages, destination) {
         Town: "High Wycombe",
         County: "Buckinghamshire",
         Postcode: "HP12 3RL",
-        Country: "GB"
+        Country: "GBR"
       },
       DeliveryAddress: {
         Town: destination.city || "London",
         Postcode: destination.postalCode || "SW1A 1AA",
-        Country: destination.country || "GB"
+        Country: "GBR"
       },
       Parcels: [{
         Weight: Math.ceil(pkg.weight_kg), // Round up to nearest kg
@@ -108,7 +108,9 @@ async function getShippingQuotes(packages, destination) {
       }]
     };
 
+    console.log('Sending to P2G API:', JSON.stringify(quoteData, null, 2));
     const quote = await fetchQuote(token, quoteData);
+    console.log('P2G API Response:', JSON.stringify(quote, null, 2));
     quotes.push({
       package: pkg,
       quotes: quote
