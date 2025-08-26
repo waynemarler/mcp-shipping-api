@@ -213,9 +213,11 @@ module.exports = async (req, res) => {
           // Fall back to static pricing for all packages  
           for (let i = 0; i < parcels.length; i++) {
             const p = parcels[i];
+            const girthCm = p.girth_mm / 10;
             const tier = STATIC_PRICING.find(t => !t.maxG || p.girth_mm <= t.maxG) || STATIC_PRICING[STATIC_PRICING.length - 1];
             p.service = tier.name;
             p.price = tier.price;
+            console.log(`Package ${i + 1}: Static pricing - ${tier.name} - £${tier.price} (girth: ${girthCm}cm)`);
           }
         }
       } catch (error) {
