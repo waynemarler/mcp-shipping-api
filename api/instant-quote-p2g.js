@@ -135,8 +135,8 @@ module.exports = async (req, res) => {
         if (quotes && Array.isArray(quotes) && quotes.length > 0) {
           console.log(`P2G returned ${quotes.length} quotes for ${parcels.length} packages`);
           
-          // Define preferred couriers (only UPS and DHL)
-          const preferredCouriers = ['ups', 'dhl'];
+          // Define preferred couriers (UPS, DHL, and Parcelforce)
+          const preferredCouriers = ['ups', 'dhl', 'parcelforce'];
           
           // Filter to only keep collection services from preferred couriers
           const collectionOnly = quotes.filter(q => {
