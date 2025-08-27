@@ -267,31 +267,26 @@ module.exports = async (req, res) => {
     let discount = 0;
     let total = subtotal;
     
-    // Apply 10% discount if 2+ packages use the SAME courier (DHL Express tiers count as same)
+    // Apply 10% discount ONLY to DHL Express static pricing (never to P2G API quotes)
     if (parcels.length >= 2) {
       const services = parcels.map(p => p.service);
       const uniqueServices = [...new Set(services)];
       
-      // Check if all services are DHL Express variants
+      // Check if all services are DHL Express variants (static pricing only)
       const allDHLExpress = services.every(service => service.startsWith('DHL Express'));
       
-      if (uniqueServices.length === 1) {
-        // All packages use exact same service - apply discount
-        discount = Math.round(subtotal * 0.1 * 100) / 100; // 10% discount
-        total = Math.round((subtotal - discount) * 100) / 100;
-        console.log(`Same service discount: ${parcels.length} packages via ${uniqueServices[0]}, 10% off (£${discount})`);
-        console.log(`Final total: £${subtotal} - £${discount} = £${total}`);
-      } else if (allDHLExpress) {
-        // All DHL Express variants - apply discount 
+      // Only apply discount if ALL packages are DHL Express (our static pricing)
+      if (allDHLExpress) {
+        // All DHL Express variants - apply discount to static pricing
         discount = Math.round(subtotal * 0.1 * 100) / 100; // 10% discount
         total = Math.round((subtotal - discount) * 100) / 100;
         console.log(`DHL Express multi-package discount: ${parcels.length} packages via DHL Express, 10% off (£${discount})`);
         console.log(`Services: ${uniqueServices.join(', ')}`);
         console.log(`Final total: £${subtotal} - £${discount} = £${total}`);
       } else {
-        // Mixed couriers - no discount
-        console.log(`Mixed couriers (${uniqueServices.join(', ')}), no discount applied`);
-        console.log(`Final total: £${total} (no discount for mixed couriers)`);
+        // Mixed couriers or P2G quotes - no discount (P2G already optimized)
+        console.log(`Mixed couriers or P2G quotes (${uniqueServices.join(', ')}), no discount applied`);
+        console.log(`Final total: £${total} (P2G quotes already optimized, no additional discount)`);
       }
     } else {
       console.log(`Final total: £${total} (single package, no discount)`);
@@ -353,17 +348,9 @@ module.exports = async (req, res) => {
     
     // Add discount message if applicable
     if (parcels.length >= 2 && discount > 0) {
-      const services = parcels.map(p => p.service);
-      const uniqueServices = [...new Set(services)];
-      const allDHLExpress = services.every(service => service.startsWith('DHL Express'));
-      
-      if (uniqueServices.length === 1) {
-        response.discountMessage = `${parcels.length} packages using same service - 10% discount applied`;
-      } else if (allDHLExpress) {
-        response.discountMessage = `${parcels.length} packages via DHL Express - 10% multi-package discount applied`;
-      }
+      response.discountMessage = `${parcels.length} packages via DHL Express - 10% multi-package discount applied`;
     } else if (parcels.length >= 2 && discount === 0) {
-      response.discountMessage = `${parcels.length} packages with different couriers - no discount available`;
+      response.discountMessage = `${parcels.length} packages - no discount (P2G quotes already optimized)`;
     }
     
     res.json(response);
