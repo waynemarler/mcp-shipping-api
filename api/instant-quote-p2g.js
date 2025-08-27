@@ -178,17 +178,12 @@ module.exports = async (req, res) => {
                 p.p2g_quotes = collectionOnly.filter(q => q.Service?.CourierSlug === 'ups').slice(0, 5);
                 console.log(`Selected UPS Standard: ${p.service} - £${p.price}`);
               } else {
-                // No UPS, try any preferred courier
-                const anyPreferred = collectionOnly.reduce((min, q) => 
-                  (!min || q.TotalPrice < min.TotalPrice) ? q : min, null);
-                
-                if (anyPreferred) {
-                  selectedQuote = anyPreferred;
-                  p.service = anyPreferred.Service?.Name || 'P2G Service';
-                  p.price = Math.round(anyPreferred.TotalPrice * 100) / 100;
-                  p.p2g_quotes = collectionOnly.slice(0, 5);
-                  console.log(`UPS not available, selected: ${p.service} - £${p.price}`);
-                }
+                // No UPS available for small package - use DHL static pricing instead of expensive alternatives
+                console.log(`No UPS available for small package, using DHL static pricing`);
+                const tier = STATIC_PRICING.find(t => !t.maxG || p.girth_mm <= t.maxG) || STATIC_PRICING[STATIC_PRICING.length - 1];
+                p.service = tier.name;
+                p.price = tier.price;
+                console.log(`DHL static for small package: ${tier.name} - £${tier.price}`);
               }
             } else {
               // For >300cm packages, prefer Parcelforce or use static DHL pricing
