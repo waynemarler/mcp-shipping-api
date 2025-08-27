@@ -186,26 +186,12 @@ module.exports = async (req, res) => {
                 console.log(`DHL static for small package: ${tier.name} - £${tier.price}`);
               }
             } else {
-              // For >300cm packages, prefer Parcelforce or use static DHL pricing
-              const parcelforce = collectionOnly.find(q => 
-                q.Service?.CourierName?.toLowerCase().includes('parcelforce')
-              );
-              
-              if (parcelforce) {
-                selectedQuote = parcelforce;
-                p.service = parcelforce.Service?.Name || 'Parcelforce Service';
-                p.price = Math.round(parcelforce.TotalPrice * 100) / 100;
-                p.p2g_quotes = collectionOnly.filter(q => 
-                  q.Service?.CourierName?.toLowerCase().includes('parcelforce')).slice(0, 5);
-                console.log(`Selected Parcelforce: ${p.service} - £${p.price}`);
-              } else {
-                // No Parcelforce, fall back to DHL static pricing
-                console.log(`No Parcelforce available, using DHL static pricing`);
-                const tier = STATIC_PRICING.find(t => !t.maxG || p.girth_mm <= t.maxG) || STATIC_PRICING[STATIC_PRICING.length - 1];
-                p.service = tier.name;
-                p.price = tier.price;
-                console.log(`Static pricing: ${tier.name} - £${tier.price}`);
-              }
+              // For >300cm packages, use DHL static pricing (no P2G for large packages)
+              console.log(`Large package >300cm, using DHL static pricing`);
+              const tier = STATIC_PRICING.find(t => !t.maxG || p.girth_mm <= t.maxG) || STATIC_PRICING[STATIC_PRICING.length - 1];
+              p.service = tier.name;
+              p.price = tier.price;
+              console.log(`DHL static for large package: ${tier.name} - £${tier.price}`);
             }
             
             // If no preferred courier found at all, fall back to static pricing
