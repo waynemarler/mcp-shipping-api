@@ -260,7 +260,17 @@ module.exports = async (req, res) => {
       getStaticPricing(parcels);
     }
     
-    const total = parcels.reduce((sum, p) => sum + p.price, 0);
+    // Calculate total with multi-package discount
+    let subtotal = parcels.reduce((sum, p) => sum + p.price, 0);
+    let discount = 0;
+    let total = subtotal;
+    
+    // Apply 10% discount for 2+ packages going to same address
+    if (parcels.length >= 2) {
+      discount = Math.round(subtotal * 0.1 * 100) / 100; // 10% discount
+      total = Math.round((subtotal - discount) * 100) / 100;
+      console.log(`Multi-package discount: ${parcels.length} packages, 10% off (£${discount})`);
+    }
     const breakdown = parcels.map(p => ({ service: p.service, price: p.price }));
 
     // Create detailed package descriptions
@@ -301,8 +311,10 @@ module.exports = async (req, res) => {
       return details;
     });
 
-    res.json({
+    const response = {
       status: "done",
+      subtotal: parcels.length >= 2 ? subtotal : undefined,
+      discount: parcels.length >= 2 ? discount : undefined,
       total,
       currency: "GBP",
       packages: parcels,
@@ -312,7 +324,14 @@ module.exports = async (req, res) => {
       copy: useP2G ? 
         "Live shipping rates from Parcel2Go carriers." : 
         "We've checked the best and cheapest option for your order."
-    });
+    };
+    
+    // Add discount message if applicable
+    if (parcels.length >= 2) {
+      response.discountMessage = `${parcels.length} packages - 10% multi-package discount applied`;
+    }
+    
+    res.json(response);
   } catch (error) {
     console.error('Error:', error);
     res.status(500).json({ error: 'Internal server error' });
