@@ -154,77 +154,72 @@ module.exports = async (req, res) => {
             return isPreferred;
           });
           
-          console.log(`Found ${collectionOnly.length} UPS/DHL collection services out of ${quotes.length} total`);
+          console.log(`Found ${collectionOnly.length} preferred courier collection services out of ${quotes.length} total`);
           
-          // Only use UPS/DHL quotes if available, otherwise use static pricing
-          const quotesToUse = collectionOnly;
-          
-          // Check maximum girth across all packages
-          const maxGirth = Math.max(...parcels.map(p => p.girth_mm / 10)); // Convert to cm
-          console.log(`Max package girth: ${maxGirth}cm`);
-          
-          let selectedQuote;
-          
-          if (maxGirth <= 300) {
-            // For packages ≤300cm girth, prefer UPS Standard
-            const upsStandard = quotesToUse.find(q => 
-              q.Service?.CourierSlug === 'ups' && 
-              q.Service?.Slug === 'ups-dap-uk-standard'
-            );
+          // Smart per-package selection: evaluate each package individually
+          for (let i = 0; i < parcels.length; i++) {
+            const p = parcels[i];
+            const girthCm = p.girth_mm / 10;
+            console.log(`\n=== Package ${i + 1} (${girthCm}cm girth) ===`);
             
-            if (upsStandard) {
-              selectedQuote = upsStandard;
-              console.log('Selected UPS Standard (preferred for girth ≤300cm)');
-            }
-          } else {
-            // For packages >300cm girth, prefer DHL Express
-            const dhlExpress = quotesToUse.find(q => 
-              q.Service?.CourierSlug === 'dhl' || 
-              q.Service?.CourierName === 'DHL'
-            );
+            let selectedQuote = null;
             
-            if (dhlExpress) {
-              selectedQuote = dhlExpress;
-              console.log('Selected DHL Express (preferred for girth >300cm)');
+            if (girthCm <= 300) {
+              // For ≤300cm packages, prefer UPS Standard
+              const upsStandard = collectionOnly.find(q => 
+                q.Service?.CourierSlug === 'ups' && 
+                q.Service?.Slug === 'ups-dap-uk-standard'
+              );
+              
+              if (upsStandard) {
+                selectedQuote = upsStandard;
+                p.service = upsStandard.Service?.Name || 'UPS Service';
+                p.price = Math.round(upsStandard.TotalPrice * 100) / 100;
+                p.p2g_quotes = collectionOnly.filter(q => q.Service?.CourierSlug === 'ups').slice(0, 5);
+                console.log(`Selected UPS Standard: ${p.service} - £${p.price}`);
+              } else {
+                // No UPS, try any preferred courier
+                const anyPreferred = collectionOnly.reduce((min, q) => 
+                  (!min || q.TotalPrice < min.TotalPrice) ? q : min, null);
+                
+                if (anyPreferred) {
+                  selectedQuote = anyPreferred;
+                  p.service = anyPreferred.Service?.Name || 'P2G Service';
+                  p.price = Math.round(anyPreferred.TotalPrice * 100) / 100;
+                  p.p2g_quotes = collectionOnly.slice(0, 5);
+                  console.log(`UPS not available, selected: ${p.service} - £${p.price}`);
+                }
+              }
+            } else {
+              // For >300cm packages, prefer Parcelforce or use static DHL pricing
+              const parcelforce = collectionOnly.find(q => 
+                q.Service?.CourierName?.toLowerCase().includes('parcelforce')
+              );
+              
+              if (parcelforce) {
+                selectedQuote = parcelforce;
+                p.service = parcelforce.Service?.Name || 'Parcelforce Service';
+                p.price = Math.round(parcelforce.TotalPrice * 100) / 100;
+                p.p2g_quotes = collectionOnly.filter(q => 
+                  q.Service?.CourierName?.toLowerCase().includes('parcelforce')).slice(0, 5);
+                console.log(`Selected Parcelforce: ${p.service} - £${p.price}`);
+              } else {
+                // No Parcelforce, fall back to DHL static pricing
+                console.log(`No Parcelforce available, using DHL static pricing`);
+                const tier = STATIC_PRICING.find(t => !t.maxG || p.girth_mm <= t.maxG) || STATIC_PRICING[STATIC_PRICING.length - 1];
+                p.service = tier.name;
+                p.price = tier.price;
+                console.log(`Static pricing: ${tier.name} - £${tier.price}`);
+              }
             }
-          }
-          
-          // If preferred courier not found and we have no UPS/DHL quotes, fall back to static
-          if (!selectedQuote && quotesToUse.length === 0) {
-            console.log('No UPS/DHL quotes available, using static pricing');
-            // Fall back to static pricing
-            for (let i = 0; i < parcels.length; i++) {
-              const p = parcels[i];
-              const girthCm = p.girth_mm / 10;
+            
+            // If no preferred courier found at all, fall back to static pricing
+            if (!selectedQuote && !p.service) {
+              console.log(`No preferred couriers available, using static pricing`);
               const tier = STATIC_PRICING.find(t => !t.maxG || p.girth_mm <= t.maxG) || STATIC_PRICING[STATIC_PRICING.length - 1];
               p.service = tier.name;
               p.price = tier.price;
-              console.log(`Package ${i + 1}: Static pricing - ${tier.name} - £${tier.price} (girth: ${girthCm}cm)`);
-            }
-            // Skip the rest of the P2G processing
-            selectedQuote = null;
-          } else if (!selectedQuote && quotesToUse.length > 0) {
-            // We have UPS/DHL quotes but not the preferred one, use cheapest UPS/DHL
-            selectedQuote = quotesToUse.reduce((min, q) => 
-              (!min || q.TotalPrice < min.TotalPrice) ? q : min, null);
-            console.log('Preferred specific service not available, using cheapest UPS/DHL option');
-          }
-          
-          const cheapest = selectedQuote;
-          
-          if (cheapest) {
-            console.log(`Best quote: ${cheapest.Service?.Name} - £${cheapest.TotalPrice} (${cheapest.Service?.CollectionType})`);
-            
-            // Calculate price per package (split total cost) - round to 2 decimal places
-            const pricePerPackage = Math.round((cheapest.TotalPrice / parcels.length) * 100) / 100;
-            
-            // Apply same service and split price to all packages
-            for (let i = 0; i < parcels.length; i++) {
-              const p = parcels[i];
-              p.service = cheapest.Service?.Name || 'P2G Service';
-              p.price = pricePerPackage;
-              p.p2g_quotes = quotesToUse.slice(0, 5); // Keep top 5 collection options
-              console.log(`Package ${i + 1}: ${p.service} - £${p.price}`);
+              console.log(`Static fallback: ${tier.name} - £${tier.price}`);
             }
           }
         } else if (p2gQuotes.error) {
