@@ -253,7 +253,7 @@ module.exports = async (req, res) => {
     }
     
     // Calculate total with multi-package discount
-    let subtotal = parcels.reduce((sum, p) => sum + p.price, 0);
+    let subtotal = Math.round(parcels.reduce((sum, p) => sum + p.price, 0) * 100) / 100;
     let discount = 0;
     let total = subtotal;
     
