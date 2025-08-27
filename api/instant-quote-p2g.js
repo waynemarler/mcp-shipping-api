@@ -136,10 +136,24 @@ module.exports = async (req, res) => {
         if (quotes && Array.isArray(quotes) && quotes.length > 0) {
           console.log(`P2G returned ${quotes.length} quotes for ${parcels.length} packages`);
           
-          // Filter to only keep collection services
-          const collectionOnly = quotes.filter(q => 
-            q.Service?.CollectionType === 'Collection'
-          );
+          // Define preferred couriers (only UPS and DHL)
+          const preferredCouriers = ['ups', 'dhl'];
+          
+          // Filter to only keep collection services from preferred couriers
+          const collectionOnly = quotes.filter(q => {
+            const courierName = q.Service?.CourierName?.toLowerCase() || '';
+            const serviceName = q.Service?.Name?.toLowerCase() || '';
+            
+            // Must be collection service
+            if (q.Service?.CollectionType !== 'Collection') return false;
+            
+            // Check if it's from a preferred courier (UPS or DHL only)
+            const isPreferred = preferredCouriers.some(courier => 
+              courierName.includes(courier) || serviceName.includes(courier)
+            );
+            
+            return isPreferred;
+          });
           
           console.log(`Found ${collectionOnly.length} collection services out of ${quotes.length} total`);
           
