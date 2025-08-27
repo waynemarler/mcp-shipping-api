@@ -270,6 +270,9 @@ module.exports = async (req, res) => {
       discount = Math.round(subtotal * 0.1 * 100) / 100; // 10% discount
       total = Math.round((subtotal - discount) * 100) / 100;
       console.log(`Multi-package discount: ${parcels.length} packages, 10% off (£${discount})`);
+      console.log(`Final total: £${subtotal} - £${discount} = £${total}`);
+    } else {
+      console.log(`Final total: £${total} (no multi-package discount)`);
     }
     const breakdown = parcels.map(p => ({ service: p.service, price: p.price }));
 
