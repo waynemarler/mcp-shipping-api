@@ -155,10 +155,10 @@ module.exports = async (req, res) => {
             return isPreferred;
           });
           
-          console.log(`Found ${collectionOnly.length} collection services out of ${quotes.length} total`);
+          console.log(`Found ${collectionOnly.length} UPS/DHL collection services out of ${quotes.length} total`);
           
-          // Use collection services if available, otherwise fall back to all quotes
-          const quotesToUse = collectionOnly.length > 0 ? collectionOnly : quotes;
+          // Only use UPS/DHL quotes if available, otherwise use static pricing
+          const quotesToUse = collectionOnly;
           
           // Check maximum girth across all packages
           const maxGirth = Math.max(...parcels.map(p => p.girth_mm / 10)); // Convert to cm
@@ -190,11 +190,25 @@ module.exports = async (req, res) => {
             }
           }
           
-          // If preferred courier not found, use cheapest option
-          if (!selectedQuote) {
+          // If preferred courier not found and we have no UPS/DHL quotes, fall back to static
+          if (!selectedQuote && quotesToUse.length === 0) {
+            console.log('No UPS/DHL quotes available, using static pricing');
+            // Fall back to static pricing
+            for (let i = 0; i < parcels.length; i++) {
+              const p = parcels[i];
+              const girthCm = p.girth_mm / 10;
+              const tier = STATIC_PRICING.find(t => !t.maxG || p.girth_mm <= t.maxG) || STATIC_PRICING[STATIC_PRICING.length - 1];
+              p.service = tier.name;
+              p.price = tier.price;
+              console.log(`Package ${i + 1}: Static pricing - ${tier.name} - £${tier.price} (girth: ${girthCm}cm)`);
+            }
+            // Skip the rest of the P2G processing
+            selectedQuote = null;
+          } else if (!selectedQuote && quotesToUse.length > 0) {
+            // We have UPS/DHL quotes but not the preferred one, use cheapest UPS/DHL
             selectedQuote = quotesToUse.reduce((min, q) => 
               (!min || q.TotalPrice < min.TotalPrice) ? q : min, null);
-            console.log('Preferred courier not available, using cheapest option');
+            console.log('Preferred specific service not available, using cheapest UPS/DHL option');
           }
           
           const cheapest = selectedQuote;
