@@ -135,8 +135,8 @@ module.exports = async (req, res) => {
         if (quotes && Array.isArray(quotes) && quotes.length > 0) {
           console.log(`P2G returned ${quotes.length} quotes for ${parcels.length} packages`);
           
-          // Define preferred couriers (UPS, DHL, and Parcelforce)
-          const preferredCouriers = ['ups', 'dhl', 'parcelforce'];
+          // Define preferred couriers (UPS and DHL only)
+          const preferredCouriers = ['ups', 'dhl'];
           
           // Filter to only keep collection services from preferred couriers
           const collectionOnly = quotes.filter(q => {
@@ -254,14 +254,24 @@ module.exports = async (req, res) => {
     let discount = 0;
     let total = subtotal;
     
-    // Apply 10% discount for 2+ packages going to same address
+    // Apply 10% discount only if 2+ packages use the SAME service
     if (parcels.length >= 2) {
-      discount = Math.round(subtotal * 0.1 * 100) / 100; // 10% discount
-      total = Math.round((subtotal - discount) * 100) / 100;
-      console.log(`Multi-package discount: ${parcels.length} packages, 10% off (£${discount})`);
-      console.log(`Final total: £${subtotal} - £${discount} = £${total}`);
+      const services = parcels.map(p => p.service);
+      const uniqueServices = [...new Set(services)];
+      
+      if (uniqueServices.length === 1) {
+        // All packages use same service - apply discount
+        discount = Math.round(subtotal * 0.1 * 100) / 100; // 10% discount
+        total = Math.round((subtotal - discount) * 100) / 100;
+        console.log(`Same service discount: ${parcels.length} packages via ${uniqueServices[0]}, 10% off (£${discount})`);
+        console.log(`Final total: £${subtotal} - £${discount} = £${total}`);
+      } else {
+        // Mixed services - no discount
+        console.log(`Mixed services (${uniqueServices.join(', ')}), no discount applied`);
+        console.log(`Final total: £${total} (no discount for mixed services)`);
+      }
     } else {
-      console.log(`Final total: £${total} (no multi-package discount)`);
+      console.log(`Final total: £${total} (single package, no discount)`);
     }
     const breakdown = parcels.map(p => ({ service: p.service, price: p.price }));
 
