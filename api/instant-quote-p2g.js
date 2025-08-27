@@ -252,6 +252,16 @@ module.exports = async (req, res) => {
       getStaticPricing(parcels);
     }
     
+    // Determine actual source used
+    let actualSource = 'Static';
+    if (useP2G) {
+      // Check if any packages actually got P2G quotes (not DHL static)
+      const hasP2GQuotes = parcels.some(p => p.p2g_quotes && p.p2g_quotes.length > 0);
+      if (hasP2GQuotes) {
+        actualSource = 'Parcel2Go';
+      }
+    }
+    
     // Calculate total with multi-package discount
     let subtotal = Math.round(parcels.reduce((sum, p) => sum + p.price, 0) * 100) / 100;
     let discount = 0;
@@ -325,15 +335,17 @@ module.exports = async (req, res) => {
       packages: parcels,
       detailedPackages,
       breakdown,
-      source: useP2G ? 'Parcel2Go' : 'Static',
-      copy: useP2G ? 
+      source: actualSource,
+      copy: actualSource === 'Parcel2Go' ? 
         "Live shipping rates from Parcel2Go carriers." : 
         "We've checked the best and cheapest option for your order."
     };
     
     // Add discount message if applicable
-    if (parcels.length >= 2) {
-      response.discountMessage = `${parcels.length} packages - 10% multi-package discount applied`;
+    if (parcels.length >= 2 && discount > 0) {
+      response.discountMessage = `${parcels.length} packages using same service - 10% discount applied`;
+    } else if (parcels.length >= 2 && discount === 0) {
+      response.discountMessage = `${parcels.length} packages with different services - no discount available`;
     }
     
     res.json(response);
