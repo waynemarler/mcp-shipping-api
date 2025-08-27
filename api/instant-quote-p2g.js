@@ -123,11 +123,14 @@ module.exports = async (req, res) => {
     let useP2G = process.env.P2G_CLIENT_ID && process.env.P2G_CLIENT_SECRET;
     let p2gQuotes = null;
     
-    // Try to get Parcel2Go quotes if credentials are set
-    if (useP2G) {
+    // Check if any packages need P2G quotes (≤300cm girth)
+    const smallPackages = parcels.filter(p => (p.girth_mm / 10) <= 300);
+    
+    // Try to get Parcel2Go quotes only for small packages
+    if (useP2G && smallPackages.length > 0) {
       try {
-        console.log('Fetching Parcel2Go quotes...');
-        p2gQuotes = await getShippingQuotes(parcels, destination);
+        console.log(`Fetching P2G quotes for ${smallPackages.length} small packages...`);
+        p2gQuotes = await getShippingQuotes(smallPackages, destination);
         console.log('P2G Response:', JSON.stringify(p2gQuotes, null, 2));
         
         // Process P2G quotes - now a single response for all packages
@@ -227,6 +230,20 @@ module.exports = async (req, res) => {
       } catch (error) {
         console.error('P2G quote error:', error);
         useP2G = false;
+      }
+    }
+    
+    // Handle large packages (>300cm) that didn't get P2G quotes
+    for (let i = 0; i < parcels.length; i++) {
+      const p = parcels[i];
+      const girthCm = p.girth_mm / 10;
+      
+      if (girthCm > 300 && !p.service) {
+        console.log(`\n=== Large Package ${i + 1} (${girthCm}cm) - DHL Static ===`);
+        const tier = STATIC_PRICING.find(t => !t.maxG || p.girth_mm <= t.maxG) || STATIC_PRICING[STATIC_PRICING.length - 1];
+        p.service = tier.name;
+        p.price = tier.price;
+        console.log(`DHL static: ${tier.name} - £${tier.price}`);
       }
     }
     
