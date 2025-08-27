@@ -216,8 +216,8 @@ module.exports = async (req, res) => {
           if (cheapest) {
             console.log(`Best quote: ${cheapest.Service?.Name} - £${cheapest.TotalPrice} (${cheapest.Service?.CollectionType})`);
             
-            // Calculate price per package (split total cost)
-            const pricePerPackage = Math.ceil(cheapest.TotalPrice / parcels.length);
+            // Calculate price per package (split total cost) - round to 2 decimal places
+            const pricePerPackage = Math.round((cheapest.TotalPrice / parcels.length) * 100) / 100;
             
             // Apply same service and split price to all packages
             for (let i = 0; i < parcels.length; i++) {
