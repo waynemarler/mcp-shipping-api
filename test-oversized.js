@@ -5,40 +5,35 @@ const https = require('https');
 const secret = 'b50fda56906e2da62889be510aad7a9d42d2b537c82363b77fcf373c5da64429';
 const publicKey = 'pc4y_pub_prod';
 
-// Test case: 9 boards of 27mm thick, 900mm x 330mm
+// Test case: Oversized package
 const testData = {
-  cartId: "test-9x27mm",
+  cartId: "test-oversized",
   destination: {
     country: "GB",
     postalCode: "HP19",
     city: "Aylesbury"
   },
-  items: []
+  items: [{
+    sku: "PINE-OVERSIZED",
+    name: "Oversized Pine Board",
+    length_mm: 2400,  // 240cm
+    width_mm: 800,    // 80cm
+    thickness_mm: 100, // 10cm
+    weight_kg: 28,
+    qty: 1
+  }]
 };
 
-// Generate 9 identical boards
-// Pine density 600 kg/m³, so 0.9m x 0.33m x 0.027m = 4.81kg per board
-for (let i = 1; i <= 9; i++) {
-  testData.items.push({
-    sku: "PINE-27",
-    name: `27mm Pine Board ${i}`,
-    length_mm: 900,
-    width_mm: 330,
-    thickness_mm: 27,
-    weight_kg: 4.81, // 600 kg/m³ density
-    qty: 1
-  });
-}
-
-// Calculate total weight
-const totalWeight = testData.items.reduce((sum, item) => sum + item.weight_kg * (item.qty || 1), 0);
-console.log('Total weight of all boards:', totalWeight.toFixed(1) + 'kg');
-console.log('Number of boards:', testData.items.length);
-console.log('Board dimensions: 900mm x 330mm x 27mm');
+// Calculate girth
+const girth = 240 + 2 * (80 + 10); // 240 + 180 = 420cm
+console.log('Testing oversized package:');
+console.log('Dimensions: 240cm x 80cm x 10cm');
+console.log('Weight: 28kg');
+console.log('Girth: ' + girth + 'cm (>300cm threshold)');
 console.log('\nExpected behavior:');
-console.log('- Total weight: 43.3kg (exceeds 30kg max)');
-console.log('- Should split into 2 packages (~21-22kg each)');
-console.log('- Girth per package: 900 + 2*(330 + height) = depends on stacking\n');
+console.log('- Should select DHL Express as preferred courier');
+console.log('- With 3cm padding: 246cm x 86cm x 16cm');
+console.log('- Girth with padding: ' + (246 + 2 * (86 + 16)) + 'cm\n');
 
 const body = JSON.stringify(testData);
 const timestamp = Date.now().toString();
@@ -60,7 +55,7 @@ const options = {
   }
 };
 
-console.log('Testing MCP API with 9x27mm scenario...\n');
+console.log('Testing MCP API with oversized package...\n');
 
 const req = https.request(options, (res) => {
   let data = '';
@@ -74,7 +69,8 @@ const req = https.request(options, (res) => {
     
     try {
       const response = JSON.parse(data);
-      // Simplified output - just show courier and price per package
+      
+      // Simplified output - just show courier and price
       console.log('\n=== SHIPPING QUOTES ===');
       if (response.detailedPackages) {
         response.detailedPackages.forEach((pkg, i) => {
@@ -84,7 +80,7 @@ const req = https.request(options, (res) => {
           if (pkg.alternativeServices && pkg.alternativeServices.length > 0) {
             console.log('  Alternatives:');
             pkg.alternativeServices.forEach(alt => {
-              console.log(`    ${alt.service} (${alt.courier}) - £${alt.price} (${alt.deliveryDays} days)`);
+              console.log(`    ${alt.service} (${alt.courier}) - £${alt.price} (${alt.deliveryDays || 'N/A'} days)`);
             });
           }
         });
@@ -92,10 +88,15 @@ const req = https.request(options, (res) => {
       
       console.log(`\nTotal: £${response.total || 'N/A'} (${response.source || 'Unknown'})`);
       
-      if (response.packages) {
-        const weights = response.packages.map(p => p.weight_kg);
-        const variance = Math.max(...weights) - Math.min(...weights);
-        console.log(`Weight balance: ${weights.map(w => w + 'kg').join(', ')} (variance: ${variance.toFixed(1)}kg)`);
+      if (response.packages && response.packages[0]) {
+        const pkg = response.packages[0];
+        const actualGirth = pkg.girth_mm / 10;
+        console.log(`\nActual package girth: ${actualGirth}cm`);
+        if (actualGirth > 300) {
+          console.log('✓ Girth > 300cm - Should prefer DHL Express');
+        } else {
+          console.log('✓ Girth ≤ 300cm - Should prefer UPS Standard');
+        }
       }
     } catch (e) {
       console.log('Raw response:', data);

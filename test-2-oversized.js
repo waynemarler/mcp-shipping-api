@@ -5,40 +5,49 @@ const https = require('https');
 const secret = 'b50fda56906e2da62889be510aad7a9d42d2b537c82363b77fcf373c5da64429';
 const publicKey = 'pc4y_pub_prod';
 
-// Test case: 9 boards of 27mm thick, 900mm x 330mm
+// Test case: 2 Oversized packages
 const testData = {
-  cartId: "test-9x27mm",
+  cartId: "test-2-oversized",
   destination: {
     country: "GB",
     postalCode: "HP19",
     city: "Aylesbury"
   },
-  items: []
+  items: [
+    {
+      sku: "PINE-OVERSIZED-1",
+      name: "Oversized Pine Board 1",
+      length_mm: 2200,  // 220cm
+      width_mm: 700,    // 70cm
+      thickness_mm: 80,  // 8cm
+      weight_kg: 25,
+      qty: 1
+    },
+    {
+      sku: "PINE-OVERSIZED-2", 
+      name: "Oversized Pine Board 2",
+      length_mm: 2400,  // 240cm
+      width_mm: 800,    // 80cm
+      thickness_mm: 100, // 10cm
+      weight_kg: 28,
+      qty: 1
+    }
+  ]
 };
 
-// Generate 9 identical boards
-// Pine density 600 kg/m³, so 0.9m x 0.33m x 0.027m = 4.81kg per board
-for (let i = 1; i <= 9; i++) {
-  testData.items.push({
-    sku: "PINE-27",
-    name: `27mm Pine Board ${i}`,
-    length_mm: 900,
-    width_mm: 330,
-    thickness_mm: 27,
-    weight_kg: 4.81, // 600 kg/m³ density
-    qty: 1
-  });
-}
+// Calculate girths
+const girth1 = 220 + 2 * (70 + 8); // 220 + 156 = 376cm
+const girth2 = 240 + 2 * (80 + 10); // 240 + 180 = 420cm
+const totalWeight = 25 + 28; // 53kg
 
-// Calculate total weight
-const totalWeight = testData.items.reduce((sum, item) => sum + item.weight_kg * (item.qty || 1), 0);
-console.log('Total weight of all boards:', totalWeight.toFixed(1) + 'kg');
-console.log('Number of boards:', testData.items.length);
-console.log('Board dimensions: 900mm x 330mm x 27mm');
+console.log('Testing 2 oversized packages:');
+console.log('Package 1: 220cm x 70cm x 8cm, 25kg, Girth: ' + girth1 + 'cm');
+console.log('Package 2: 240cm x 80cm x 10cm, 28kg, Girth: ' + girth2 + 'cm');
+console.log('Total weight: ' + totalWeight + 'kg (exceeds 30kg max)');
 console.log('\nExpected behavior:');
-console.log('- Total weight: 43.3kg (exceeds 30kg max)');
-console.log('- Should split into 2 packages (~21-22kg each)');
-console.log('- Girth per package: 900 + 2*(330 + height) = depends on stacking\n');
+console.log('- Both packages >300cm girth - should split due to weight');
+console.log('- Should use static pricing: DHL Express Large £70 each');
+console.log('- Total: £140\n');
 
 const body = JSON.stringify(testData);
 const timestamp = Date.now().toString();
@@ -60,7 +69,7 @@ const options = {
   }
 };
 
-console.log('Testing MCP API with 9x27mm scenario...\n');
+console.log('Testing MCP API with 2 oversized packages...\n');
 
 const req = https.request(options, (res) => {
   let data = '';
@@ -74,17 +83,16 @@ const req = https.request(options, (res) => {
     
     try {
       const response = JSON.parse(data);
-      // Simplified output - just show courier and price per package
+      
       console.log('\n=== SHIPPING QUOTES ===');
       if (response.detailedPackages) {
         response.detailedPackages.forEach((pkg, i) => {
           console.log(`Package ${i + 1}: ${pkg.service || 'Unknown'} - £${pkg.price || 'N/A'} (${pkg.totalWeight}, ${pkg.dimensions})`);
           
-          // Show alternative services if available
           if (pkg.alternativeServices && pkg.alternativeServices.length > 0) {
             console.log('  Alternatives:');
             pkg.alternativeServices.forEach(alt => {
-              console.log(`    ${alt.service} (${alt.courier}) - £${alt.price} (${alt.deliveryDays} days)`);
+              console.log(`    ${alt.service} (${alt.courier}) - £${alt.price} (${alt.deliveryDays || 'N/A'} days)`);
             });
           }
         });
@@ -94,8 +102,18 @@ const req = https.request(options, (res) => {
       
       if (response.packages) {
         const weights = response.packages.map(p => p.weight_kg);
+        const girths = response.packages.map(p => p.girth_mm / 10);
         const variance = Math.max(...weights) - Math.min(...weights);
         console.log(`Weight balance: ${weights.map(w => w + 'kg').join(', ')} (variance: ${variance.toFixed(1)}kg)`);
+        console.log(`Package girths: ${girths.map(g => g + 'cm').join(', ')}`);
+        
+        girths.forEach((g, i) => {
+          if (g > 300) {
+            console.log(`✓ Package ${i + 1} girth ${g}cm > 300cm - Should use DHL Express Large`);
+          } else {
+            console.log(`✓ Package ${i + 1} girth ${g}cm ≤ 300cm - Should use UPS Standard`);
+          }
+        });
       }
     } catch (e) {
       console.log('Raw response:', data);
