@@ -5,11 +5,12 @@ const SECRET = process.env.PC4Y_SECRET || 'b50fda56906e2da62889be510aad7a9d42d2b
 const MAX_WEIGHT = 30;
 const PADDING = 30;
 
-// Fallback static pricing if P2G fails
+// Fallback static pricing if P2G fails (refined oversized rates)
 const STATIC_PRICING = [
-  { name: "Standard", maxG: 3000, price: 25 },
-  { name: "DHL Express Large", maxG: 5000, price: 70 },  // For packages >300cm girth when P2G fails
-  { name: "Pallet/XL", price: 110 }
+  { name: "Standard", maxG: 3000, price: 25 },                    // Up to 300cm girth (P2G usually handles these)
+  { name: "DHL Express Medium", maxG: 3200, price: 68.51 },       // 301-320cm girth
+  { name: "DHL Express Large", maxG: 3600, price: 74.76 },        // 321-360cm girth
+  { name: "DHL Express XL", price: 89.67 }                        // Over 360cm girth
 ];
 
 function packItems(items) {
