@@ -162,20 +162,23 @@ module.exports = async (req, res) => {
           // Use P2G quote for entire shipment, not per package
           console.log(`\nProcessing ${parcels.length} packages with P2G quotes`);
           
-          // Find the best UPS Standard quote for entire shipment
-          const upsStandard = collectionOnly.find(q => 
-            q.Service?.CourierSlug === 'ups' && 
-            q.Service?.Slug === 'ups-dap-uk-standard'
-          );
+          // Find the best UPS quote for entire shipment (any UPS service)
+          const upsQuotes = collectionOnly.filter(q => q.Service?.CourierSlug === 'ups');
+          const upsStandard = upsQuotes.find(q => q.Service?.Slug === 'ups-dap-uk-standard') || 
+                              upsQuotes[0]; // Use first UPS quote if Standard not available
           
           let p2gShipmentTotal = null;
           
-          if (upsStandard) {
+          if (upsQuotes.length === 0) {
+            console.log('⚠️ No UPS quotes available from P2G - may exceed UPS size/weight limits');
+            console.log('Available couriers:', [...new Set(collectionOnly.map(q => q.Service?.CourierName))].join(', '));
+          } else if (upsStandard) {
             // P2G quote is for entire shipment
             p2gShipmentTotal = Math.round(upsStandard.TotalPrice * 100) / 100;
             const serviceName = upsStandard.Service?.Name || 'UPS Service';
             
-            console.log(`Selected UPS Standard for entire shipment: ${serviceName} - £${p2gShipmentTotal}`);
+            console.log(`Selected UPS service for entire shipment: ${serviceName} - £${p2gShipmentTotal}`);
+            console.log(`Total UPS options available: ${upsQuotes.length}`);
           }
           
           // Process each package
