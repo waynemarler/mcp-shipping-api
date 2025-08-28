@@ -95,9 +95,15 @@ function packItems(items) {
 // Get static pricing fallback
 function getStaticPricing(parcels) {
   for (const p of parcels) {
-    const tier = STATIC_PRICING.find(t => !t.maxG || p.girth_mm <= t.maxG) || STATIC_PRICING[STATIC_PRICING.length - 1];
-    p.service = tier.name;
-    p.price = tier.price;
+    if (p.weight_kg > MAX_WEIGHT) {
+      p.service = 'OVERWEIGHT';
+      p.price = 0;
+      p.error = `Package exceeds 30kg limit (${p.weight_kg}kg)`;
+    } else {
+      const tier = STATIC_PRICING.find(t => !t.maxG || p.girth_mm <= t.maxG) || STATIC_PRICING[STATIC_PRICING.length - 1];
+      p.service = tier.name;
+      p.price = tier.price;
+    }
   }
   return parcels;
 }
@@ -197,18 +203,32 @@ module.exports = async (req, res) => {
             } else if (girthCm <= 300 && p2gShipmentTotal === null) {
               // No UPS available for small package - use DHL static
               console.log(`No UPS available, using DHL static pricing`);
-              const tier = STATIC_PRICING.find(t => !t.maxG || p.girth_mm <= t.maxG) || STATIC_PRICING[STATIC_PRICING.length - 1];
-              p.service = tier.name;
-              p.price = tier.price;
-              console.log(`DHL static: ${tier.name} - £${tier.price}`);
+              if (p.weight_kg > MAX_WEIGHT) {
+                p.service = 'OVERWEIGHT';
+                p.price = 0;
+                p.error = `Package exceeds 30kg limit (${p.weight_kg}kg)`;
+                console.log(`⚠️ Package overweight: ${p.weight_kg}kg > ${MAX_WEIGHT}kg limit`);
+              } else {
+                const tier = STATIC_PRICING.find(t => !t.maxG || p.girth_mm <= t.maxG) || STATIC_PRICING[STATIC_PRICING.length - 1];
+                p.service = tier.name;
+                p.price = tier.price;
+                console.log(`DHL static: ${tier.name} - £${tier.price}`);
+              }
               
             } else {
               // Large packages always use DHL static
               console.log(`Large package >300cm, using DHL static pricing`);
-              const tier = STATIC_PRICING.find(t => !t.maxG || p.girth_mm <= t.maxG) || STATIC_PRICING[STATIC_PRICING.length - 1];
-              p.service = tier.name;
-              p.price = tier.price;
-              console.log(`DHL static: ${tier.name} - £${tier.price}`);
+              if (p.weight_kg > MAX_WEIGHT) {
+                p.service = 'OVERWEIGHT';
+                p.price = 0;
+                p.error = `Package exceeds 30kg limit (${p.weight_kg}kg)`;
+                console.log(`⚠️ Package overweight: ${p.weight_kg}kg > ${MAX_WEIGHT}kg limit`);
+              } else {
+                const tier = STATIC_PRICING.find(t => !t.maxG || p.girth_mm <= t.maxG) || STATIC_PRICING[STATIC_PRICING.length - 1];
+                p.service = tier.name;
+                p.price = tier.price;
+                console.log(`DHL static: ${tier.name} - £${tier.price}`);
+              }
             }
           }
           
@@ -221,9 +241,15 @@ module.exports = async (req, res) => {
           // Fall back to static pricing for all packages
           for (let i = 0; i < parcels.length; i++) {
             const p = parcels[i];
-            const tier = STATIC_PRICING.find(t => !t.maxG || p.girth_mm <= t.maxG) || STATIC_PRICING[STATIC_PRICING.length - 1];
-            p.service = tier.name;
-            p.price = tier.price;
+            if (p.weight_kg > MAX_WEIGHT) {
+              p.service = 'OVERWEIGHT';
+              p.price = 0;
+              p.error = `Package exceeds 30kg limit (${p.weight_kg}kg)`;
+            } else {
+              const tier = STATIC_PRICING.find(t => !t.maxG || p.girth_mm <= t.maxG) || STATIC_PRICING[STATIC_PRICING.length - 1];
+              p.service = tier.name;
+              p.price = tier.price;
+            }
           }
         } else {
           console.log('No quotes found - falling back to static pricing');
@@ -231,10 +257,17 @@ module.exports = async (req, res) => {
           for (let i = 0; i < parcels.length; i++) {
             const p = parcels[i];
             const girthCm = p.girth_mm / 10;
-            const tier = STATIC_PRICING.find(t => !t.maxG || p.girth_mm <= t.maxG) || STATIC_PRICING[STATIC_PRICING.length - 1];
-            p.service = tier.name;
-            p.price = tier.price;
-            console.log(`Package ${i + 1}: Static pricing - ${tier.name} - £${tier.price} (girth: ${girthCm}cm)`);
+            if (p.weight_kg > MAX_WEIGHT) {
+              p.service = 'OVERWEIGHT';
+              p.price = 0;
+              p.error = `Package exceeds 30kg limit (${p.weight_kg}kg)`;
+              console.log(`Package ${i + 1}: OVERWEIGHT - ${p.weight_kg}kg exceeds ${MAX_WEIGHT}kg limit`);
+            } else {
+              const tier = STATIC_PRICING.find(t => !t.maxG || p.girth_mm <= t.maxG) || STATIC_PRICING[STATIC_PRICING.length - 1];
+              p.service = tier.name;
+              p.price = tier.price;
+              console.log(`Package ${i + 1}: Static pricing - ${tier.name} - £${tier.price} (girth: ${girthCm}cm)`);
+            }
           }
         }
       } catch (error) {
@@ -250,10 +283,17 @@ module.exports = async (req, res) => {
       
       if (girthCm > 300 && !p.service) {
         console.log(`\n=== Large Package ${i + 1} (${girthCm}cm) - DHL Static ===`);
-        const tier = STATIC_PRICING.find(t => !t.maxG || p.girth_mm <= t.maxG) || STATIC_PRICING[STATIC_PRICING.length - 1];
-        p.service = tier.name;
-        p.price = tier.price;
-        console.log(`DHL static: ${tier.name} - £${tier.price}`);
+        if (p.weight_kg > MAX_WEIGHT) {
+          p.service = 'OVERWEIGHT';
+          p.price = 0;
+          p.error = `Package exceeds 30kg limit (${p.weight_kg}kg)`;
+          console.log(`⚠️ Package overweight: ${p.weight_kg}kg > ${MAX_WEIGHT}kg limit`);
+        } else {
+          const tier = STATIC_PRICING.find(t => !t.maxG || p.girth_mm <= t.maxG) || STATIC_PRICING[STATIC_PRICING.length - 1];
+          p.service = tier.name;
+          p.price = tier.price;
+          console.log(`DHL static: ${tier.name} - £${tier.price}`);
+        }
       }
     }
     
