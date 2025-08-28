@@ -370,6 +370,7 @@ module.exports = async (req, res) => {
       detailedPackages,
       breakdown,
       source: actualSource,
+      p2g_shipment_total: parcels.p2g_shipment_total || 0,
       copy: actualSource === 'Parcel2Go' ? 
         "Live shipping rates from Parcel2Go carriers." : 
         "We've checked the best and cheapest option for your order."
