@@ -159,52 +159,59 @@ module.exports = async (req, res) => {
           
           console.log(`Found ${collectionOnly.length} preferred courier collection services out of ${quotes.length} total`);
           
-          // Smart per-package selection: evaluate each package individually
+          // Use P2G quote for entire shipment, not per package
+          console.log(`\nProcessing ${parcels.length} packages with P2G quotes`);
+          
+          // Find the best UPS Standard quote for entire shipment
+          const upsStandard = collectionOnly.find(q => 
+            q.Service?.CourierSlug === 'ups' && 
+            q.Service?.Slug === 'ups-dap-uk-standard'
+          );
+          
+          let p2gShipmentTotal = null;
+          
+          if (upsStandard) {
+            // P2G quote is for entire shipment
+            p2gShipmentTotal = Math.round(upsStandard.TotalPrice * 100) / 100;
+            const serviceName = upsStandard.Service?.Name || 'UPS Service';
+            
+            console.log(`Selected UPS Standard for entire shipment: ${serviceName} - £${p2gShipmentTotal}`);
+          }
+          
+          // Process each package
           for (let i = 0; i < parcels.length; i++) {
             const p = parcels[i];
             const girthCm = p.girth_mm / 10;
             console.log(`\n=== Package ${i + 1} (${girthCm}cm girth) ===`);
             
-            let selectedQuote = null;
-            
-            if (girthCm <= 300) {
-              // For ≤300cm packages, prefer UPS Standard
-              const upsStandard = collectionOnly.find(q => 
-                q.Service?.CourierSlug === 'ups' && 
-                q.Service?.Slug === 'ups-dap-uk-standard'
-              );
+            if (girthCm <= 300 && p2gShipmentTotal !== null) {
+              // Small packages use P2G service (price handled separately)
+              p.service = upsStandard.Service?.Name || 'UPS Service';
+              p.price = 0; // Will use shipment total instead
+              p.p2g_quotes = collectionOnly.filter(q => q.Service?.CourierSlug === 'ups').slice(0, 5);
+              console.log(`Package uses P2G service: ${p.service}`);
               
-              if (upsStandard) {
-                selectedQuote = upsStandard;
-                p.service = upsStandard.Service?.Name || 'UPS Service';
-                p.price = Math.round(upsStandard.TotalPrice * 100) / 100;
-                p.p2g_quotes = collectionOnly.filter(q => q.Service?.CourierSlug === 'ups').slice(0, 5);
-                console.log(`Selected UPS Standard: ${p.service} - £${p.price}`);
-              } else {
-                // No UPS available for small package - use DHL static pricing instead of expensive alternatives
-                console.log(`No UPS available for small package, using DHL static pricing`);
-                const tier = STATIC_PRICING.find(t => !t.maxG || p.girth_mm <= t.maxG) || STATIC_PRICING[STATIC_PRICING.length - 1];
-                p.service = tier.name;
-                p.price = tier.price;
-                console.log(`DHL static for small package: ${tier.name} - £${tier.price}`);
-              }
+            } else if (girthCm <= 300 && p2gShipmentTotal === null) {
+              // No UPS available for small package - use DHL static
+              console.log(`No UPS available, using DHL static pricing`);
+              const tier = STATIC_PRICING.find(t => !t.maxG || p.girth_mm <= t.maxG) || STATIC_PRICING[STATIC_PRICING.length - 1];
+              p.service = tier.name;
+              p.price = tier.price;
+              console.log(`DHL static: ${tier.name} - £${tier.price}`);
+              
             } else {
-              // For >300cm packages, use DHL static pricing (no P2G for large packages)
+              // Large packages always use DHL static
               console.log(`Large package >300cm, using DHL static pricing`);
               const tier = STATIC_PRICING.find(t => !t.maxG || p.girth_mm <= t.maxG) || STATIC_PRICING[STATIC_PRICING.length - 1];
               p.service = tier.name;
               p.price = tier.price;
-              console.log(`DHL static for large package: ${tier.name} - £${tier.price}`);
+              console.log(`DHL static: ${tier.name} - £${tier.price}`);
             }
-            
-            // If no preferred courier found at all, fall back to static pricing
-            if (!selectedQuote && !p.service) {
-              console.log(`No preferred couriers available, using static pricing`);
-              const tier = STATIC_PRICING.find(t => !t.maxG || p.girth_mm <= t.maxG) || STATIC_PRICING[STATIC_PRICING.length - 1];
-              p.service = tier.name;
-              p.price = tier.price;
-              console.log(`Static fallback: ${tier.name} - £${tier.price}`);
-            }
+          }
+          
+          // Store P2G total for final calculation
+          if (p2gShipmentTotal !== null) {
+            parcels.p2g_shipment_total = p2gShipmentTotal;
           }
         } else if (p2gQuotes.error) {
           console.error('P2G quote error:', p2gQuotes.error);
@@ -262,10 +269,23 @@ module.exports = async (req, res) => {
       }
     }
     
-    // Calculate total with multi-package discount
-    let subtotal = Math.round(parcels.reduce((sum, p) => sum + p.price, 0) * 100) / 100;
+    // Calculate total - use P2G shipment total if available, otherwise sum package prices
+    let subtotal;
     let discount = 0;
-    let total = subtotal;
+    let total;
+    
+    if (parcels.p2g_shipment_total) {
+      // Use P2G total for entire shipment + any DHL static packages
+      const dhlStaticTotal = parcels.filter(p => p.price > 0).reduce((sum, p) => sum + p.price, 0);
+      subtotal = Math.round((parcels.p2g_shipment_total + dhlStaticTotal) * 100) / 100;
+      total = subtotal;
+      console.log(`Using P2G shipment total: £${parcels.p2g_shipment_total} + DHL static: £${dhlStaticTotal} = £${subtotal}`);
+    } else {
+      // Traditional calculation for all static pricing
+      subtotal = Math.round(parcels.reduce((sum, p) => sum + p.price, 0) * 100) / 100;
+      total = subtotal;
+      console.log(`Using summed package prices: £${subtotal}`);
+    }
     
     // Apply 10% discount to DHL Express static pricing only (never to P2G API quotes)
     if (parcels.length >= 2) {
