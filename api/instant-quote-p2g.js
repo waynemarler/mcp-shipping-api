@@ -173,18 +173,29 @@ module.exports = async (req, res) => {
           const upsStandard = upsQuotes.find(q => q.Service?.Slug === 'ups-dap-uk-standard') || 
                               upsQuotes[0]; // Use first UPS quote if Standard not available
           
-          let p2gShipmentTotal = null;
+          // If no UPS, try Parcelforce as backup
+          const parcelforceQuotes = collectionOnly.filter(q => q.Service?.CourierSlug === 'parcelforce');
+          const parcelforceService = parcelforceQuotes[0]; // Use first Parcelforce quote
           
-          if (upsQuotes.length === 0) {
-            console.log('⚠️ No UPS quotes available from P2G - may exceed UPS size/weight limits');
-            console.log('Available couriers:', [...new Set(collectionOnly.map(q => q.Service?.CourierName))].join(', '));
-          } else if (upsStandard) {
-            // P2G quote is for entire shipment
+          let p2gShipmentTotal = null;
+          let p2gService = null;
+          
+          if (upsStandard) {
+            // UPS available - use it
             p2gShipmentTotal = Math.round(upsStandard.TotalPrice * 100) / 100;
-            const serviceName = upsStandard.Service?.Name || 'UPS Service';
-            
-            console.log(`Selected UPS service for entire shipment: ${serviceName} - £${p2gShipmentTotal}`);
+            p2gService = upsStandard;
+            console.log(`✓ Selected UPS service for entire shipment: ${upsStandard.Service?.Name} - £${p2gShipmentTotal}`);
             console.log(`Total UPS options available: ${upsQuotes.length}`);
+          } else if (parcelforceService) {
+            // No UPS but Parcelforce available - use it
+            p2gShipmentTotal = Math.round(parcelforceService.TotalPrice * 100) / 100;
+            p2gService = parcelforceService;
+            console.log(`⚠️ No UPS available, using Parcelforce fallback: ${parcelforceService.Service?.Name} - £${p2gShipmentTotal}`);
+            console.log(`Total Parcelforce options available: ${parcelforceQuotes.length}`);
+          } else {
+            // Neither UPS nor Parcelforce available
+            console.log('⚠️ No UPS or Parcelforce quotes available from P2G - will use DHL static');
+            console.log('Available couriers:', [...new Set(collectionOnly.map(q => q.Service?.CourierName))].join(', '));
           }
           
           // Process each package
@@ -194,11 +205,12 @@ module.exports = async (req, res) => {
             console.log(`\n=== Package ${i + 1} (${girthCm}cm girth) ===`);
             
             if (girthCm <= 300 && p2gShipmentTotal !== null) {
-              // Small packages use P2G service (price handled separately)
-              p.service = upsStandard.Service?.Name || 'UPS Service';
+              // Small packages use P2G service (UPS or Parcelforce)
+              p.service = p2gService.Service?.Name || 'P2G Service';
               p.price = 0; // Will use shipment total instead
-              p.p2g_quotes = collectionOnly.filter(q => q.Service?.CourierSlug === 'ups').slice(0, 5);
-              console.log(`Package uses P2G service: ${p.service}`);
+              const courierSlug = p2gService.Service?.CourierSlug;
+              p.p2g_quotes = collectionOnly.filter(q => q.Service?.CourierSlug === courierSlug).slice(0, 5);
+              console.log(`Package uses P2G service: ${p.service} (${courierSlug})`);
               
             } else if (girthCm <= 300 && p2gShipmentTotal === null) {
               // No UPS available for small package - use DHL static
