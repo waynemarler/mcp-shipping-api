@@ -7,9 +7,9 @@ const PADDING = 30;
 
 // Fallback static pricing if P2G fails (DHL Express tiers only)
 const STATIC_PRICING = [
-  { name: "DHL Express Medium", maxG: 3800, price: 68.51 },       // Up to 380cm girth
-  { name: "DHL Express Large", maxG: 4200, price: 74.76 },        // 381-420cm girth
-  { name: "DHL Express XL", price: 89.67 }                        // Over 420cm girth
+  { name: "DHL Express Medium", maxG: 3800, price: 73.51 },       // Up to 380cm girth
+  { name: "DHL Express Large", maxG: 4200, price: 79.76 },        // 381-420cm girth
+  { name: "DHL Express XL", price: 94.67 }                        // Over 420cm girth
 ];
 
 function packItems(items) {
