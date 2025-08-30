@@ -2,14 +2,16 @@ const crypto = require('crypto');
 const { getShippingQuotes } = require('../parcel2go-integration');
 
 const SECRET = process.env.PC4Y_SECRET || 'b50fda56906e2da62889be510aad7a9d42d2b537c82363b77fcf373c5da64429';
-const MAX_WEIGHT = 30;
+const MAX_WEIGHT = 30; // Max weight for UPS/Parcelforce via P2G
+const DHL_MAX_WEIGHT = 45; // Max weight for DHL static pricing
 const PADDING = 30;
 
 // Fallback static pricing if P2G fails (DHL Express tiers only)
 const STATIC_PRICING = [
   { name: "DHL Express Medium", maxG: 3800, price: 73.51 },       // Up to 380cm girth
   { name: "DHL Express Large", maxG: 4200, price: 79.76 },        // 381-420cm girth
-  { name: "DHL Express XL", price: 94.67 }                        // Over 420cm girth
+  { name: "DHL Express XL", maxG: 5000, price: 94.67 },           // 421-500cm girth
+  { name: "DHL Express XXL", price: 109.56 }                      // Over 500cm girth
 ];
 
 function packItems(items) {
@@ -95,10 +97,10 @@ function packItems(items) {
 // Get static pricing fallback
 function getStaticPricing(parcels) {
   for (const p of parcels) {
-    if (p.weight_kg > MAX_WEIGHT) {
+    if (p.weight_kg > DHL_MAX_WEIGHT) {
       p.service = 'OVERWEIGHT';
       p.price = 0;
-      p.error = `Package exceeds 30kg limit (${p.weight_kg}kg)`;
+      p.error = `Package exceeds ${DHL_MAX_WEIGHT}kg DHL limit (${p.weight_kg}kg)`;
     } else {
       const tier = STATIC_PRICING.find(t => !t.maxG || p.girth_mm <= t.maxG) || STATIC_PRICING[STATIC_PRICING.length - 1];
       p.service = tier.name;
@@ -215,11 +217,11 @@ module.exports = async (req, res) => {
             } else if (girthCm <= 300 && p2gShipmentTotal === null) {
               // No UPS available for small package - use DHL static
               console.log(`No UPS available, using DHL static pricing`);
-              if (p.weight_kg > MAX_WEIGHT) {
+              if (p.weight_kg > DHL_MAX_WEIGHT) {
                 p.service = 'OVERWEIGHT';
                 p.price = 0;
-                p.error = `Package exceeds 30kg limit (${p.weight_kg}kg)`;
-                console.log(`⚠️ Package overweight: ${p.weight_kg}kg > ${MAX_WEIGHT}kg limit`);
+                p.error = `Package exceeds ${DHL_MAX_WEIGHT}kg DHL limit (${p.weight_kg}kg)`;
+                console.log(`⚠️ Package overweight: ${p.weight_kg}kg > ${DHL_MAX_WEIGHT}kg DHL limit`);
               } else {
                 const tier = STATIC_PRICING.find(t => !t.maxG || p.girth_mm <= t.maxG) || STATIC_PRICING[STATIC_PRICING.length - 1];
                 p.service = tier.name;
@@ -230,11 +232,11 @@ module.exports = async (req, res) => {
             } else {
               // Large packages always use DHL static
               console.log(`Large package >300cm, using DHL static pricing`);
-              if (p.weight_kg > MAX_WEIGHT) {
+              if (p.weight_kg > DHL_MAX_WEIGHT) {
                 p.service = 'OVERWEIGHT';
                 p.price = 0;
-                p.error = `Package exceeds 30kg limit (${p.weight_kg}kg)`;
-                console.log(`⚠️ Package overweight: ${p.weight_kg}kg > ${MAX_WEIGHT}kg limit`);
+                p.error = `Package exceeds ${DHL_MAX_WEIGHT}kg DHL limit (${p.weight_kg}kg)`;
+                console.log(`⚠️ Package overweight: ${p.weight_kg}kg > ${DHL_MAX_WEIGHT}kg DHL limit`);
               } else {
                 const tier = STATIC_PRICING.find(t => !t.maxG || p.girth_mm <= t.maxG) || STATIC_PRICING[STATIC_PRICING.length - 1];
                 p.service = tier.name;
@@ -253,10 +255,10 @@ module.exports = async (req, res) => {
           // Fall back to static pricing for all packages
           for (let i = 0; i < parcels.length; i++) {
             const p = parcels[i];
-            if (p.weight_kg > MAX_WEIGHT) {
+            if (p.weight_kg > DHL_MAX_WEIGHT) {
               p.service = 'OVERWEIGHT';
               p.price = 0;
-              p.error = `Package exceeds 30kg limit (${p.weight_kg}kg)`;
+              p.error = `Package exceeds ${DHL_MAX_WEIGHT}kg DHL limit (${p.weight_kg}kg)`;
             } else {
               const tier = STATIC_PRICING.find(t => !t.maxG || p.girth_mm <= t.maxG) || STATIC_PRICING[STATIC_PRICING.length - 1];
               p.service = tier.name;
@@ -269,11 +271,11 @@ module.exports = async (req, res) => {
           for (let i = 0; i < parcels.length; i++) {
             const p = parcels[i];
             const girthCm = p.girth_mm / 10;
-            if (p.weight_kg > MAX_WEIGHT) {
+            if (p.weight_kg > DHL_MAX_WEIGHT) {
               p.service = 'OVERWEIGHT';
               p.price = 0;
-              p.error = `Package exceeds 30kg limit (${p.weight_kg}kg)`;
-              console.log(`Package ${i + 1}: OVERWEIGHT - ${p.weight_kg}kg exceeds ${MAX_WEIGHT}kg limit`);
+              p.error = `Package exceeds ${DHL_MAX_WEIGHT}kg DHL limit (${p.weight_kg}kg)`;
+              console.log(`Package ${i + 1}: OVERWEIGHT - ${p.weight_kg}kg exceeds ${DHL_MAX_WEIGHT}kg DHL limit`);
             } else {
               const tier = STATIC_PRICING.find(t => !t.maxG || p.girth_mm <= t.maxG) || STATIC_PRICING[STATIC_PRICING.length - 1];
               p.service = tier.name;
@@ -295,11 +297,11 @@ module.exports = async (req, res) => {
       
       if (girthCm > 300 && !p.service) {
         console.log(`\n=== Large Package ${i + 1} (${girthCm}cm) - DHL Static ===`);
-        if (p.weight_kg > MAX_WEIGHT) {
+        if (p.weight_kg > DHL_MAX_WEIGHT) {
           p.service = 'OVERWEIGHT';
           p.price = 0;
-          p.error = `Package exceeds 30kg limit (${p.weight_kg}kg)`;
-          console.log(`⚠️ Package overweight: ${p.weight_kg}kg > ${MAX_WEIGHT}kg limit`);
+          p.error = `Package exceeds ${DHL_MAX_WEIGHT}kg DHL limit (${p.weight_kg}kg)`;
+          console.log(`⚠️ Package overweight: ${p.weight_kg}kg > ${DHL_MAX_WEIGHT}kg DHL limit`);
         } else {
           const tier = STATIC_PRICING.find(t => !t.maxG || p.girth_mm <= t.maxG) || STATIC_PRICING[STATIC_PRICING.length - 1];
           p.service = tier.name;
