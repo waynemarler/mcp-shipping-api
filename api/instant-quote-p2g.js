@@ -34,7 +34,10 @@ function packItems(items) {
         quantity: qty,  // Keep track of quantity
         keep_together: true
       });
-      console.log(`T&G Board detected: ${item.name} - ${qty} boards kept together`);
+      console.log(`🔗 KEEP_TOGETHER detected: ${item.name}`);
+      console.log(`   └── SKU: ${item.sku}, Qty: ${qty} boards`);
+      console.log(`   └── Individual board: ${item.length_mm}×${item.width_mm}×${item.thickness_mm}mm, ${item.weight_kg}kg each`);
+      console.log(`   └── Total weight: ${(item.weight_kg * qty).toFixed(2)}kg`);
     } else {
       // Regular items - expand quantity as before
       for (let i = 0; i < qty; i++) {
@@ -63,7 +66,9 @@ function packItems(items) {
     const bundleWidth = tgBundle.width_mm + 2 * PADDING;  // Single board width (90mm)
     const bundleHeight = (tgBundle.thickness_mm * tgBundle.quantity) + 2 * PADDING; // Stack all boards vertically
     
-    console.log(`T&G Bundle: ${tgBundle.quantity} boards, ${bundleWeight}kg total`);
+    console.log(`📦 T&G Bundle Packaging: ${tgBundle.quantity} boards, ${bundleWeight}kg total`);
+    console.log(`   └── Bundle dimensions: ${bundleLength}×${bundleWidth}×${bundleHeight}mm`);
+    console.log(`   └── Bundle girth: ${Math.round((bundleLength + 2 * (bundleWidth + bundleHeight))/10)}cm`);
     
     // Create packages for T&G bundles (split if over weight limit)
     if (bundleWeight <= MAX_WEIGHT) {
@@ -76,23 +81,29 @@ function packItems(items) {
         items: [`${tgBundle.name} x${tgBundle.quantity}`],
         is_tg_bundle: true
       });
+      console.log(`   ✅ Single T&G package created: ${bundleWeight}kg ≤ ${MAX_WEIGHT}kg limit`);
     } else {
       // Split into multiple packages if too heavy
       const packagesNeeded = Math.ceil(bundleWeight / MAX_WEIGHT);
       const boardsPerPackage = Math.ceil(tgBundle.quantity / packagesNeeded);
+      console.log(`   ⚠️ T&G bundle too heavy (${bundleWeight}kg > ${MAX_WEIGHT}kg), splitting into ${packagesNeeded} packages`);
       
       for (let i = 0; i < packagesNeeded; i++) {
         const boardsInPackage = Math.min(boardsPerPackage, tgBundle.quantity - (i * boardsPerPackage));
         const packageWeight = tgBundle.weight_kg * boardsInPackage;
+        const packageHeight = (tgBundle.thickness_mm * boardsInPackage) + 2 * PADDING;
         
         parcels.push({
           length_mm: bundleLength,
           width_mm: tgBundle.width_mm + 2 * PADDING,  // Single board width
-          height_mm: (tgBundle.thickness_mm * boardsInPackage) + 2 * PADDING,  // Stack height
+          height_mm: packageHeight,  // Stack height
           weight_kg: Math.round(packageWeight * 100) / 100,
           items: [`${tgBundle.name} x${boardsInPackage}`],
           is_tg_bundle: true
         });
+        
+        console.log(`   └── T&G Package ${i+1}/${packagesNeeded}: ${boardsInPackage} boards, ${packageWeight.toFixed(2)}kg`);
+        console.log(`       Dimensions: ${bundleLength}×${tgBundle.width_mm + 2 * PADDING}×${packageHeight}mm`);
       }
     }
   }
