@@ -56,10 +56,12 @@ function packItems(items) {
   for (const tgBundle of tgBoards) {
     const bundleWeight = tgBundle.weight_kg * tgBundle.quantity;
     
-    // Calculate dimensions for the bundle (stacked boards)
+    // Calculate dimensions for the bundle (stacked boards like tester shows)
+    // For 45 boards at 90mm wide × 9mm thick:
+    // Stack them: 45 boards × 9mm = 405mm height
     const bundleLength = tgBundle.length_mm + 2 * PADDING;
-    const bundleWidth = tgBundle.width_mm * Math.min(tgBundle.quantity, 10) + 2 * PADDING; // Stack up to 10 wide
-    const bundleHeight = tgBundle.thickness_mm * Math.ceil(tgBundle.quantity / 10) + 2 * PADDING; // Then stack high
+    const bundleWidth = tgBundle.width_mm + 2 * PADDING;  // Single board width (90mm)
+    const bundleHeight = (tgBundle.thickness_mm * tgBundle.quantity) + 2 * PADDING; // Stack all boards vertically
     
     console.log(`T&G Bundle: ${tgBundle.quantity} boards, ${bundleWeight}kg total`);
     
@@ -85,8 +87,8 @@ function packItems(items) {
         
         parcels.push({
           length_mm: bundleLength,
-          width_mm: tgBundle.width_mm * Math.min(boardsInPackage, 10) + 2 * PADDING,
-          height_mm: tgBundle.thickness_mm * Math.ceil(boardsInPackage / 10) + 2 * PADDING,
+          width_mm: tgBundle.width_mm + 2 * PADDING,  // Single board width
+          height_mm: (tgBundle.thickness_mm * boardsInPackage) + 2 * PADDING,  // Stack height
           weight_kg: Math.round(packageWeight * 100) / 100,
           items: [`${tgBundle.name} x${boardsInPackage}`],
           is_tg_bundle: true
