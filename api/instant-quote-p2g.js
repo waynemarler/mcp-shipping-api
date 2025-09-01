@@ -15,49 +15,120 @@ const STATIC_PRICING = [
 ];
 
 function packItems(items) {
-  const boards = [];
+  // Separate T&G boards from other items
+  const tgBoards = [];
+  const regularBoards = [];
+  
   for (const item of items) {
     const qty = item.qty || 1;
-    for (let i = 0; i < qty; i++) {
-      boards.push({
+    
+    // Check if this is a T&G board that should be kept together
+    if (item.keep_together || item.product_type === 'T&G_BOARDS') {
+      // Keep T&G boards as a single unit (don't expand quantity)
+      tgBoards.push({
         name: item.name,
         length_mm: item.length_mm,
         width_mm: item.width_mm,
         thickness_mm: item.thickness_mm,
-        weight_kg: item.weight_kg || 0
+        weight_kg: item.weight_kg || 0,
+        quantity: qty,  // Keep track of quantity
+        keep_together: true
       });
+      console.log(`T&G Board detected: ${item.name} - ${qty} boards kept together`);
+    } else {
+      // Regular items - expand quantity as before
+      for (let i = 0; i < qty; i++) {
+        regularBoards.push({
+          name: item.name,
+          length_mm: item.length_mm,
+          width_mm: item.width_mm,
+          thickness_mm: item.thickness_mm,
+          weight_kg: item.weight_kg || 0
+        });
+      }
     }
   }
-
+  
+  // Process T&G boards first (as complete bundles)
+  const parcels = [];
+  
+  // Pack T&G boards into their own packages
+  for (const tgBundle of tgBoards) {
+    const bundleWeight = tgBundle.weight_kg * tgBundle.quantity;
+    
+    // Calculate dimensions for the bundle (stacked boards)
+    const bundleLength = tgBundle.length_mm + 2 * PADDING;
+    const bundleWidth = tgBundle.width_mm * Math.min(tgBundle.quantity, 10) + 2 * PADDING; // Stack up to 10 wide
+    const bundleHeight = tgBundle.thickness_mm * Math.ceil(tgBundle.quantity / 10) + 2 * PADDING; // Then stack high
+    
+    console.log(`T&G Bundle: ${tgBundle.quantity} boards, ${bundleWeight}kg total`);
+    
+    // Create packages for T&G bundles (split if over weight limit)
+    if (bundleWeight <= MAX_WEIGHT) {
+      // Single package for all T&G boards
+      parcels.push({
+        length_mm: bundleLength,
+        width_mm: bundleWidth,
+        height_mm: bundleHeight,
+        weight_kg: Math.round(bundleWeight * 100) / 100,
+        items: [`${tgBundle.name} x${tgBundle.quantity}`],
+        is_tg_bundle: true
+      });
+    } else {
+      // Split into multiple packages if too heavy
+      const packagesNeeded = Math.ceil(bundleWeight / MAX_WEIGHT);
+      const boardsPerPackage = Math.ceil(tgBundle.quantity / packagesNeeded);
+      
+      for (let i = 0; i < packagesNeeded; i++) {
+        const boardsInPackage = Math.min(boardsPerPackage, tgBundle.quantity - (i * boardsPerPackage));
+        const packageWeight = tgBundle.weight_kg * boardsInPackage;
+        
+        parcels.push({
+          length_mm: bundleLength,
+          width_mm: tgBundle.width_mm * Math.min(boardsInPackage, 10) + 2 * PADDING,
+          height_mm: tgBundle.thickness_mm * Math.ceil(boardsInPackage / 10) + 2 * PADDING,
+          weight_kg: Math.round(packageWeight * 100) / 100,
+          items: [`${tgBundle.name} x${boardsInPackage}`],
+          is_tg_bundle: true
+        });
+      }
+    }
+  }
+  
+  // Now handle regular boards with the existing logic
+  const boards = regularBoards;
+  
   // Sort by weight descending (pack heaviest items first for better distribution)
   boards.sort((a, b) => b.weight_kg - a.weight_kg);
   const totalWeight = boards.reduce((sum, b) => sum + b.weight_kg, 0);
   
-  // Calculate optimal number of packages
-  let targetPackages = Math.ceil(totalWeight / MAX_WEIGHT);
-  const targetWeight = totalWeight / targetPackages;
-  console.log(`Total: ${totalWeight}kg, Target packages: ${targetPackages}, Target weight: ${targetWeight}kg`);
-  
-  // Initialize empty parcels
-  const parcels = [];
-  for (let i = 0; i < targetPackages; i++) {
-    parcels.push({
-      length_mm: 0,
-      width_mm: 0,
-      height_mm: PADDING * 2, // Start with padding
-      weight_kg: 0,
-      items: []
-    });
-  }
+  // Calculate optimal number of packages for regular items
+  if (boards.length > 0) {
+    let targetPackages = Math.ceil(totalWeight / MAX_WEIGHT);
+    const targetWeight = totalWeight / targetPackages;
+    console.log(`Regular items: ${totalWeight}kg, Target packages: ${targetPackages}, Target weight: ${targetWeight}kg`);
+    
+    // Initialize empty parcels for regular items (add to existing parcels array)
+    const startIndex = parcels.length; // Remember where regular parcels start
+    for (let i = 0; i < targetPackages; i++) {
+      parcels.push({
+        length_mm: 0,
+        width_mm: 0,
+        height_mm: PADDING * 2, // Start with padding
+        weight_kg: 0,
+        items: []
+      });
+    }
 
-  // Distribute boards using best-fit decreasing
-  for (const board of boards) {
-    let bestParcel = -1;
-    let minWeight = Infinity;
+    // Distribute regular boards using best-fit decreasing (only to regular parcels)
+    for (const board of boards) {
+      let bestParcel = -1;
+      let minWeight = Infinity;
 
-    // Find the parcel with minimum weight that can still fit this board
-    for (let i = 0; i < parcels.length; i++) {
-      const p = parcels[i];
+      // Find the parcel with minimum weight that can still fit this board
+      // Only consider regular parcels (starting from startIndex)
+      for (let i = startIndex; i < parcels.length; i++) {
+        const p = parcels[i];
       const newWeight = p.weight_kg + board.weight_kg;
       
       // Skip if would exceed max weight
@@ -70,22 +141,23 @@ function packItems(items) {
       }
     }
 
-    // If no suitable parcel found (shouldn't happen with proper sizing)
-    if (bestParcel === -1) {
-      bestParcel = 0; // Fallback to first parcel
-    }
+      // If no suitable parcel found (shouldn't happen with proper sizing)
+      if (bestParcel === -1) {
+        bestParcel = startIndex; // Fallback to first regular parcel
+      }
 
-    // Add board to selected parcel
-    const p = parcels[bestParcel];
-    p.length_mm = Math.max(p.length_mm, board.length_mm + 2 * PADDING);
-    p.width_mm = Math.max(p.width_mm, board.width_mm + 2 * PADDING);
-    p.height_mm += board.thickness_mm;
-    p.weight_kg = Math.round((p.weight_kg + board.weight_kg) * 100) / 100;
-    p.items.push(board.name);
-  }
+      // Add board to selected parcel
+      const p = parcels[bestParcel];
+      p.length_mm = Math.max(p.length_mm, board.length_mm + 2 * PADDING);
+      p.width_mm = Math.max(p.width_mm, board.width_mm + 2 * PADDING);
+      p.height_mm += board.thickness_mm;
+      p.weight_kg = Math.round((p.weight_kg + board.weight_kg) * 100) / 100;
+      p.items.push(board.name);
+    }
+  } // End of if (boards.length > 0)
   
-  // Remove empty parcels if any
-  const filledParcels = parcels.filter(p => p.items.length > 0);
+  // Remove empty parcels if any (but keep T&G bundles even if items array is different)
+  const filledParcels = parcels.filter(p => p.items.length > 0 || p.is_tg_bundle);
 
   for (const p of filledParcels) {
     p.girth_mm = p.length_mm + 2 * (p.width_mm + p.height_mm);
