@@ -360,7 +360,7 @@ module.exports = async (req, res) => {
           for (let i = 0; i < parcels.length; i++) {
             const p = parcels[i];
             const girthCm = p.girth_mm / 10;
-            console.log(`\n=== Package ${i + 1} (${girthCm}cm girth) ===`);
+            console.log(`\n=== Package ${i + 1} (${girthCm}cm girth, ${p.weight_kg}kg) ===`);
             
             if (girthCm <= 300 && p2gShipmentTotal !== null) {
               // Small packages use P2G service (UPS or Parcelforce)
@@ -452,7 +452,7 @@ module.exports = async (req, res) => {
       const girthCm = p.girth_mm / 10;
       
       if (girthCm > 300 && !p.service) {
-        console.log(`\n=== Large Package ${i + 1} (${girthCm}cm) - DHL Static ===`);
+        console.log(`\n=== Large Package ${i + 1} (${girthCm}cm girth, ${p.weight_kg}kg) - DHL Static ===`);
         if (p.weight_kg > DHL_MAX_WEIGHT) {
           p.service = 'OVERWEIGHT';
           p.price = 0;
