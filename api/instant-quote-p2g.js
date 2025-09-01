@@ -108,66 +108,137 @@ function packItems(items) {
     }
   }
   
-  // Now handle regular boards with the existing logic
+  // Now handle regular boards with GIRTH-FIRST strategy
   const boards = regularBoards;
   
-  // Sort by weight descending (pack heaviest items first for better distribution)
-  boards.sort((a, b) => b.weight_kg - a.weight_kg);
-  const totalWeight = boards.reduce((sum, b) => sum + b.weight_kg, 0);
-  
-  // Calculate optimal number of packages for regular items
   if (boards.length > 0) {
-    let targetPackages = Math.ceil(totalWeight / MAX_WEIGHT);
-    const targetWeight = totalWeight / targetPackages;
-    console.log(`Regular items: ${totalWeight}kg, Target packages: ${targetPackages}, Target weight: ${targetWeight}kg`);
+    console.log(`🎯 GIRTH-FIRST PACKAGING: ${boards.length} regular boards to process`);
     
-    // Initialize empty parcels for regular items (add to existing parcels array)
-    const startIndex = parcels.length; // Remember where regular parcels start
-    for (let i = 0; i < targetPackages; i++) {
-      parcels.push({
-        length_mm: 0,
-        width_mm: 0,
-        height_mm: PADDING * 2, // Start with padding
-        weight_kg: 0,
-        items: []
-      });
-    }
-
-    // Distribute regular boards using best-fit decreasing (only to regular parcels)
+    // Sort boards by dimensions (smaller boards first for better UPS packing)
+    boards.sort((a, b) => {
+      const aSize = a.length_mm * a.width_mm * a.thickness_mm;
+      const bSize = b.length_mm * b.width_mm * b.thickness_mm;
+      return aSize - bSize;
+    });
+    
+    const upsBoards = [];
+    const dhlBoards = [];
+    
+    // PHASE 1: Create UPS packages (≤300cm girth, ≤30kg weight)
+    console.log(`📦 PHASE 1: Creating UPS packages (≤300cm, ≤30kg)`);
+    
     for (const board of boards) {
-      let bestParcel = -1;
-      let minWeight = Infinity;
-
-      // Find the parcel with minimum weight that can still fit this board
-      // Only consider regular parcels (starting from startIndex)
-      for (let i = startIndex; i < parcels.length; i++) {
+      let addedToUPS = false;
+      
+      // Try to fit this board into existing UPS packages
+      for (let i = parcels.length - 1; i >= 0; i--) {
         const p = parcels[i];
-      const newWeight = p.weight_kg + board.weight_kg;
+        
+        // Skip T&G bundles and DHL packages
+        if (p.is_tg_bundle || p.is_dhl_oversized) continue;
+        
+        // Calculate new dimensions if we add this board
+        const newLength = Math.max(p.length_mm, board.length_mm + 2 * PADDING);
+        const newWidth = Math.max(p.width_mm, board.width_mm + 2 * PADDING);
+        const newHeight = p.height_mm + board.thickness_mm;
+        const newWeight = p.weight_kg + board.weight_kg;
+        const newGirth = newLength + 2 * (newWidth + newHeight);
+        
+        // Check if it fits UPS constraints
+        if (newGirth <= 3000 && newWeight <= MAX_WEIGHT) { // 3000mm = 300cm
+          // Add to existing UPS package
+          p.length_mm = newLength;
+          p.width_mm = newWidth;
+          p.height_mm = newHeight;
+          p.weight_kg = Math.round(newWeight * 100) / 100;
+          p.items.push(board.name);
+          addedToUPS = true;
+          break;
+        }
+      }
       
-      // Skip if would exceed max weight
-      if (newWeight > MAX_WEIGHT) continue;
+      // If not added to existing package, try to create new UPS package
+      if (!addedToUPS) {
+        const packageLength = board.length_mm + 2 * PADDING;
+        const packageWidth = board.width_mm + 2 * PADDING;  
+        const packageHeight = board.thickness_mm + 2 * PADDING;
+        const packageGirth = packageLength + 2 * (packageWidth + packageHeight);
+        
+        if (packageGirth <= 3000 && board.weight_kg <= MAX_WEIGHT) {
+          // Create new UPS package
+          parcels.push({
+            length_mm: packageLength,
+            width_mm: packageWidth,
+            height_mm: packageHeight,
+            weight_kg: board.weight_kg,
+            items: [board.name],
+            is_ups_package: true
+          });
+          addedToUPS = true;
+          console.log(`   ✅ New UPS package: ${Math.round(packageGirth/10)}cm girth, ${board.weight_kg}kg`);
+        }
+      }
       
-      // Prefer the lightest parcel to balance weights
-      if (p.weight_kg < minWeight) {
-        minWeight = p.weight_kg;
-        bestParcel = i;
+      // If couldn't fit in UPS, save for DHL phase
+      if (!addedToUPS) {
+        dhlBoards.push(board);
       }
     }
-
-      // If no suitable parcel found (shouldn't happen with proper sizing)
-      if (bestParcel === -1) {
-        bestParcel = startIndex; // Fallback to first regular parcel
+    
+    // PHASE 2: Create DHL packages for oversized boards (≤45kg weight)
+    if (dhlBoards.length > 0) {
+      console.log(`📦 PHASE 2: Creating DHL packages for ${dhlBoards.length} oversized boards (≤45kg)`);
+      
+      for (const board of dhlBoards) {
+        let addedToDHL = false;
+        
+        // Try to fit into existing DHL packages
+        for (let i = parcels.length - 1; i >= 0; i--) {
+          const p = parcels[i];
+          
+          // Only consider DHL packages
+          if (!p.is_dhl_oversized) continue;
+          
+          const newWeight = p.weight_kg + board.weight_kg;
+          
+          // Check DHL weight constraint
+          if (newWeight <= DHL_MAX_WEIGHT) {
+            // Add to existing DHL package
+            p.length_mm = Math.max(p.length_mm, board.length_mm + 2 * PADDING);
+            p.width_mm = Math.max(p.width_mm, board.width_mm + 2 * PADDING);
+            p.height_mm += board.thickness_mm;
+            p.weight_kg = Math.round(newWeight * 100) / 100;
+            p.items.push(board.name);
+            addedToDHL = true;
+            break;
+          }
+        }
+        
+        // Create new DHL package if needed
+        if (!addedToDHL) {
+          const packageLength = board.length_mm + 2 * PADDING;
+          const packageWidth = board.width_mm + 2 * PADDING;
+          const packageHeight = board.thickness_mm + 2 * PADDING;
+          const packageGirth = packageLength + 2 * (packageWidth + packageHeight);
+          
+          parcels.push({
+            length_mm: packageLength,
+            width_mm: packageWidth,
+            height_mm: packageHeight,
+            weight_kg: board.weight_kg,
+            items: [board.name],
+            is_dhl_oversized: true
+          });
+          console.log(`   ⚠️ New DHL package: ${Math.round(packageGirth/10)}cm girth, ${board.weight_kg}kg`);
+        }
       }
-
-      // Add board to selected parcel
-      const p = parcels[bestParcel];
-      p.length_mm = Math.max(p.length_mm, board.length_mm + 2 * PADDING);
-      p.width_mm = Math.max(p.width_mm, board.width_mm + 2 * PADDING);
-      p.height_mm += board.thickness_mm;
-      p.weight_kg = Math.round((p.weight_kg + board.weight_kg) * 100) / 100;
-      p.items.push(board.name);
     }
-  } // End of if (boards.length > 0)
+    
+    const upsCount = parcels.filter(p => p.is_ups_package).length;
+    const dhlCount = parcels.filter(p => p.is_dhl_oversized).length;
+    const tgCount = parcels.filter(p => p.is_tg_bundle).length;
+    console.log(`🎯 PACKAGING COMPLETE: ${upsCount} UPS + ${dhlCount} DHL + ${tgCount} T&G packages`);
+  }
   
   // Remove empty parcels if any (but keep T&G bundles even if items array is different)
   const filledParcels = parcels.filter(p => p.items.length > 0 || p.is_tg_bundle);
